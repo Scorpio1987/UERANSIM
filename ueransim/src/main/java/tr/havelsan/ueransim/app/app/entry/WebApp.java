@@ -18,6 +18,8 @@ import tr.havelsan.ueransim.app.utils.ConfigUtils;
 import tr.havelsan.ueransim.app.utils.SocketWrapperSerializer;
 import tr.havelsan.ueransim.itms.nts.NtsTask;
 import tr.havelsan.ueransim.utils.Fun;
+import tr.havelsan.ueransim.utils.Severity;
+import tr.havelsan.ueransim.utils.Tag;
 import tr.havelsan.ueransim.utils.Utils;
 import tr.havelsan.ueransim.utils.console.Log;
 import tr.havelsan.ueransim.utils.console.LogEntry;
@@ -67,7 +69,7 @@ public class WebApp {
         };
 
         Fun initJavalin = () -> Javalin.create().start(1071).ws("/web-interface", ws -> {
-            ws.onConnect(wsc -> senderTask.push(new ConnectionMarker(wsc)));
+            ws.onConnect(wsc -> senderTask.push(new OnConnected(wsc)));
             ws.onMessage(wsc -> receiverTask.push(SocketWrapperSerializer.fromJson(wsc.message(), SocketWrapper.class)));
         });
 
@@ -102,10 +104,10 @@ public class WebApp {
         new WebApp();
     }
 
-    private static class ConnectionMarker {
+    private static class OnConnected {
         private final WsContext ws;
 
-        public ConnectionMarker(WsContext ws) {
+        public OnConnected(WsContext ws) {
             this.ws = ws;
         }
     }
@@ -133,10 +135,11 @@ public class WebApp {
         public void main() {
             while (true) {
                 var msg = take();
-                if (msg instanceof ConnectionMarker) {
-                    ws = ((ConnectionMarker) msg).ws;
+                if (msg instanceof OnConnected) {
+                    ws = ((OnConnected) msg).ws;
                     push(new SwTestCases(ProcedureTester.testCases()));
                     push(new SwIntervalMetadata(LoadTestMonitor.IntervalMetadata.INSTANCE));
+                    push(new SwLogMetadata(Severity.values(), Tag.values()));
                 } else if (msg instanceof SocketWrapper) {
                     if (ws != null) {
                         ws.send(SocketWrapperSerializer.toJson(msg));
@@ -163,12 +166,12 @@ public class WebApp {
 
                 var list = new ArrayList<LogEntry>();
 
-                LogEntry entry;
-                do {
-                    entry = (LogEntry) poll();
+                while (true) {
+                    var entry = (LogEntry) poll();
                     if (entry != null)
                         list.add(entry);
-                } while (entry != null);
+                    else break;
+                }
 
                 if (!list.isEmpty()) {
                     senderTask.push(new SwLog(list));
