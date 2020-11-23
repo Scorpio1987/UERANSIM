@@ -5,6 +5,7 @@
 
 package tr.havelsan.ueransim.app.ue.sm;
 
+import tr.havelsan.ueransim.app.common.itms.IwPduSessionEstablishment;
 import tr.havelsan.ueransim.app.common.itms.IwUeConnectionSetup;
 import tr.havelsan.ueransim.app.common.simctx.UeSimContext;
 import tr.havelsan.ueransim.itms.ItmsId;
@@ -32,14 +33,14 @@ class SmPduSessionEstablishment {
 
         var pduSessionId = SmPduSessionManagement.allocatePduSessionId(ctx);
         if (pduSessionId == null) {
-            Log.error(Tag.PROC, "PDU Session Establishment Request could not send");
+            Log.error(Tag.FLOW, "PDU Session Establishment Request could not send");
             Log.funcOut();
             return;
         }
 
         var procedureTransactionId = SmPduSessionManagement.allocateProcedureTransactionId(ctx);
         if (procedureTransactionId == null) {
-            Log.error(Tag.PROC, "PDU Session Establishment Request could not send");
+            Log.error(Tag.FLOW, "PDU Session Establishment Request could not send");
             SmPduSessionManagement.releasePduSession(ctx, pduSessionId);
             Log.funcOut();
             return;
@@ -75,7 +76,7 @@ class SmPduSessionEstablishment {
         Log.funcIn("Handling: PDU Session Establishment Accept");
 
         if (message.smCause != null) {
-            Log.warning(Tag.PROC, "SM cause received in PduSessionEstablishmentAccept: %s", message.smCause.value);
+            Log.warning(Tag.FLOW, "SM cause received in PduSessionEstablishmentAccept: %s", message.smCause.value);
         }
 
         ctx.ueTimers.t3580.stop();
@@ -84,7 +85,7 @@ class SmPduSessionEstablishment {
 
         var pduSession = ctx.smCtx.pduSessions[message.pduSessionId.intValue()];
         if (pduSession == null) {
-            Log.error(Tag.PROC, "PDU session not found: %s", message.pduSessionId);
+            Log.error(Tag.FLOW, "PDU session not found: %s", message.pduSessionId);
             Log.funcOut();
             return;
         }
@@ -96,10 +97,11 @@ class SmPduSessionEstablishment {
         pduSession.sessionType = message.selectedPduSessionType;
         pduSession.pduAddress = message.pduAddress;
 
-        ctx.itms.sendMessage(ItmsId.UE_TASK_APP, new IwUeConnectionSetup(pduSession));
+        ctx.nts.findTask(ItmsId.UE_TASK_APP).push(new IwUeConnectionSetup(pduSession));
+        ctx.sim.getAirCtx().nts.findTask(ItmsId.AIR_TASK_TB).push(new IwPduSessionEstablishment(ctx.ctxId, pduSession));
 
-        Log.info(Tag.PROC, "PDU session established: %s", message.pduSessionId);
-        Log.success(Tag.PROCEDURE_RESULT, "PDU Session Establishment is successful");
+        Log.info(Tag.FLOW, "PDU session established: %s", message.pduSessionId);
+        Log.success(Tag.PROC, "PDU Session Establishment is successful");
         Log.funcOut();
     }
 

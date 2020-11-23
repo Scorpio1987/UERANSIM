@@ -7,16 +7,18 @@ package tr.havelsan.ueransim.app.gnb.gtp;
 
 import tr.havelsan.ueransim.app.common.PduSessionResource;
 import tr.havelsan.ueransim.app.common.contexts.GtpUContext;
-import tr.havelsan.ueransim.app.common.itms.*;
+import tr.havelsan.ueransim.app.common.itms.IwDownlinkData;
+import tr.havelsan.ueransim.app.common.itms.IwGtpDownlink;
+import tr.havelsan.ueransim.app.common.itms.IwPduSessionResourceCreate;
+import tr.havelsan.ueransim.app.common.itms.IwUplinkData;
 import tr.havelsan.ueransim.app.common.simctx.GnbSimContext;
 import tr.havelsan.ueransim.gtp.GtpDecoder;
 import tr.havelsan.ueransim.gtp.GtpEncoder;
 import tr.havelsan.ueransim.gtp.GtpMessage;
 import tr.havelsan.ueransim.gtp.ext.PduSessionContainerExtHeader;
 import tr.havelsan.ueransim.gtp.pdusup.UlPduSessionInformation;
-import tr.havelsan.ueransim.itms.Itms;
 import tr.havelsan.ueransim.itms.ItmsId;
-import tr.havelsan.ueransim.itms.ItmsTask;
+import tr.havelsan.ueransim.itms.nts.NtsTask;
 import tr.havelsan.ueransim.utils.Tag;
 import tr.havelsan.ueransim.utils.bits.Bit6;
 import tr.havelsan.ueransim.utils.console.Log;
@@ -29,24 +31,26 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.util.ArrayList;
 
-public class GtpTask extends ItmsTask {
+public class GtpTask extends NtsTask {
 
     private final GnbSimContext ctx;
     private GtpUContext gtpCtx;
     private DatagramSocket socket;
+    private NtsTask mrTask;
 
-    public GtpTask(Itms itms, int taskId, GnbSimContext ctx) {
-        super(itms, taskId);
+    public GtpTask(GnbSimContext ctx) {
         this.ctx = ctx;
     }
 
     @Override
     public void main() {
         this.gtpCtx = ctx.gtpUCtx;
+        this.mrTask = ctx.nts.findTask(ItmsId.GNB_TASK_MR);
+
         try {
             this.socket = new DatagramSocket(ctx.config.gtpPort, InetAddress.getByName(ctx.config.host));
         } catch (Exception e) {
-            Log.error(Tag.CONNECTION, "Failed to bind UDP/GTP socket %s:%s (%s)", ctx.config.gtpPort, ctx.config.host, e.toString());
+            Log.error(Tag.CONN, "Failed to bind UDP/GTP socket %s:%s (%s)", ctx.config.gtpPort, ctx.config.host, e.toString());
             return;
         }
 
@@ -61,16 +65,16 @@ public class GtpTask extends ItmsTask {
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
-                itms.sendMessage(ItmsId.GNB_TASK_GTP, new IwGtpDownlink(new OctetString(datagram.getData(), datagram.getOffset(), datagram.getLength()), datagram.getAddress(), datagram.getPort()));
+                push(new IwGtpDownlink(new OctetString(datagram.getData(), datagram.getOffset(), datagram.getLength()), datagram.getAddress(), datagram.getPort()));
             }
         });
 
-        Log.registerLogger(receiverThread, Log.getLoggerOrDefault(thread));
+        Log.registerLogger(receiverThread, Log.getLoggerOrDefault(getThread()));
 
         receiverThread.start();
 
         while (true) {
-            var msg = itms.receiveMessage(this);
+            var msg = take();
             if (msg instanceof IwPduSessionResourceCreate) {
                 handleTunnelCreate(((IwPduSessionResourceCreate) msg).pduSessionResource);
             } else if (msg instanceof IwUplinkData) {
@@ -137,17 +141,17 @@ public class GtpTask extends ItmsTask {
         }
 
         if (gtp.msgType.intValue() != GtpMessage.MT_G_PDU) {
-            Log.error(Tag.NOT_IMPL_YET, "Unhandled GTP-U message type: " + gtp.msgType);
+            Log.error(Tag.NIMPL, "Unhandled GTP-U message type: " + gtp.msgType);
             return;
         }
 
         var ueId = pduSession.get().ueId;
         var ipPacket = gtp.payload;
-        itms.sendMessage(ItmsId.GNB_TASK_MR, new IwDownlinkData(ueId, ipPacket));
+
+        mrTask.push(new IwDownlinkData(ueId, ipPacket));
     }
 
     private void handleTunnelCreate(PduSessionResource pduSession) {
         this.gtpCtx.pduSessions.add(pduSession);
-        itms.sendMessage(ItmsId.GNB_TASK_TUN, new IwTunnelCreateSampleInfo(pduSession.ueId, pduSession.pduSessionId));
     }
 }

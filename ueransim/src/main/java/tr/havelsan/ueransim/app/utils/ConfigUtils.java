@@ -5,9 +5,9 @@
 
 package tr.havelsan.ueransim.app.utils;
 
-import tr.havelsan.ueransim.app.common.simctx.BaseSimContext;
-import tr.havelsan.ueransim.app.common.simctx.GnbSimContext;
-import tr.havelsan.ueransim.app.common.simctx.UeSimContext;
+import tr.havelsan.ueransim.app.common.configs.ProcTestConfig;
+import tr.havelsan.ueransim.mts.ImplicitTypedObject;
+import tr.havelsan.ueransim.mts.MtsContext;
 import tr.havelsan.ueransim.utils.console.Logger;
 
 import java.io.IOException;
@@ -41,11 +41,12 @@ public class ConfigUtils {
         });
     }
 
-    public static String generateNodeName(BaseSimContext ctx) {
-        if (ctx instanceof UeSimContext)
-            return "ue-" + ((UeSimContext) ctx).ueConfig.supi.toString();
-        if (ctx instanceof GnbSimContext)
-            return "gnb-" + ((GnbSimContext) ctx).config.gnbId;
-        throw new RuntimeException();
+    public static ProcTestConfig createProcTestConfig() {
+        var testingMts = new MtsContext();
+        testingMts.setKebabCaseDecoding(true);
+        MtsInitializer.initDefaultMts(testingMts);
+
+        var ito = (ImplicitTypedObject) testingMts.decoder.decode("config/proc-testing.yaml");
+        return testingMts.constructor.construct(ProcTestConfig.class, ito, true);
     }
 }

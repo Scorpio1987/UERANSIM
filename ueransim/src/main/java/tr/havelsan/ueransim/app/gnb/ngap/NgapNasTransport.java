@@ -70,7 +70,7 @@ public class NgapNasTransport {
 
         var nasMessage = message.getNasMessage();
         if (nasMessage != null) {
-            ctx.itms.sendMessage(ItmsId.GNB_TASK_MR, new IwDownlinkNas(associatedUe, NasEncoder.nasPduS(nasMessage)));
+            ctx.nts.findTask(ItmsId.GNB_TASK_MR).push(new IwDownlinkNas(associatedUe, NasEncoder.nasPduS(nasMessage)));
         }
 
         Log.funcOut();
@@ -95,14 +95,14 @@ public class NgapNasTransport {
         var newAmf = NgapUeManagement.selectNewAmfForReAllocation(ctx, associatedAmf, new Bit10(amfSetId.value.intValue()));
 
         if (newAmf != null) {
-            Log.info(Tag.PROC, "New AMF selected for re-allocation. AMF: %s", newAmf);
+            Log.info(Tag.FLOW, "New AMF selected for re-allocation. AMF: %s", newAmf);
 
             var ueCtx = ctx.ueContexts.get(associatedUe);
             ueCtx.associatedAmf = newAmf;
 
             NgapTransfer.sendNgapUeAssociated(ctx, associatedUe, newMessage);
         } else {
-            Log.error(Tag.PROC, "AMF selection for re-allocation failed. Could not find a suitable AMF.");
+            Log.error(Tag.FLOW, "AMF selection for re-allocation failed. Could not find a suitable AMF.");
         }
 
         Log.funcOut();
