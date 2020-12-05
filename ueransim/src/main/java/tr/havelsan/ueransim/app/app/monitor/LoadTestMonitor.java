@@ -33,9 +33,7 @@ public class LoadTestMonitor extends MonitorTask {
 
     @Override
     public void onSend(BaseSimContext ctx, Object message) {
-        if (message instanceof NGAP_NGSetupRequest) {
-            intervalStarted(ctx, "ngSetup");
-        } else if (message instanceof RegistrationRequest) {
+        if (message instanceof RegistrationRequest) {
             intervalStarted(ctx, "registration");
             intervalStarted(ctx, "phase1");
         } else if (message instanceof AuthenticationResponse) {
@@ -50,11 +48,7 @@ public class LoadTestMonitor extends MonitorTask {
 
     @Override
     public void onReceive(BaseSimContext ctx, Object message) {
-        if (message instanceof NGAP_NGSetupResponse) {
-            intervalEnded(ctx, "ngSetup", true);
-        } else if (message instanceof NGAP_NGSetupFailure) {
-            intervalEnded(ctx, "ngSetup", false);
-        } else if (message instanceof RegistrationReject) {
+        if (message instanceof RegistrationReject) {
             intervalEnded(ctx, "registration", false);
         } else if (message instanceof RegistrationAccept) {
             intervalEnded(ctx, "phase3", true);
@@ -94,17 +88,15 @@ public class LoadTestMonitor extends MonitorTask {
     public static class IntervalMetadata {
         public static IntervalMetadata INSTANCE = new IntervalMetadata();
 
-        public final IntervalInfo ngSetup;
         public final IntervalInfo registration;
         public final IntervalInfo phase1;
         public final IntervalInfo phase2;
-        public final IntervalInfo phase3;
         public final IntervalInfo securityModeControl;
+        public final IntervalInfo phase3;
         public final IntervalInfo authentication;
         public final IntervalInfo deregistration;
 
         private IntervalMetadata() {
-            this.ngSetup = new IntervalInfo("ngSetup", null, getIntervalDisplay("ngSetup"));
             this.registration = new IntervalInfo("registration", null, getIntervalDisplay("registration"));
             this.phase1 = new IntervalInfo("phase1", "registration", getIntervalDisplay("phase1"));
             this.phase2 = new IntervalInfo("phase2", "registration", getIntervalDisplay("phase2"));
@@ -116,8 +108,6 @@ public class LoadTestMonitor extends MonitorTask {
 
         public static String getIntervalDisplay(String id) {
             switch (id) {
-                case "ngSetup":
-                    return "NG Setup";
                 case "registration":
                     return "Registration";
                 case "phase1":
