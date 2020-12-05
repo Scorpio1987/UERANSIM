@@ -100,8 +100,8 @@ public class LoadTestMonitor extends MonitorTask {
             this.registration = new IntervalInfo("registration", null, getIntervalDisplay("registration"));
             this.phase1 = new IntervalInfo("phase1", "registration", getIntervalDisplay("phase1"));
             this.phase2 = new IntervalInfo("phase2", "registration", getIntervalDisplay("phase2"));
-            this.phase3 = new IntervalInfo("phase3", "registration", getIntervalDisplay("phase3"));
             this.securityModeControl = new IntervalInfo("securityModeControl", "registration", getIntervalDisplay("securityModeControl"));
+            this.phase3 = new IntervalInfo("phase3", "registration", getIntervalDisplay("phase3"));
             this.authentication = new IntervalInfo("authentication", "registration", getIntervalDisplay("authentication"));
             this.deregistration = new IntervalInfo("deregistration", null, getIntervalDisplay("deregistration"));
         }
@@ -114,10 +114,10 @@ public class LoadTestMonitor extends MonitorTask {
                     return "Phase 1 (Registration-Authentication)";
                 case "phase2":
                     return "Phase 2 (Authentication-SecurityModeControl)";
-                case "phase3":
-                    return "Phase 3 (SecurityModeControl-RegistrationAccept)";
                 case "securityModeControl":
                     return "Security Mode Control";
+                case "phase3":
+                    return "Phase 3 (SecurityModeControl-RegistrationAccept)";
                 case "deregistration":
                     return "De-Registration";
                 case "authentication":
