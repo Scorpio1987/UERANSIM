@@ -65,7 +65,7 @@ public class MobilityManagement {
         } else if (message instanceof DlNasTransport) {
             SessionManagement.receiveDl(ctx, (DlNasTransport) message);
         } else {
-            Log.error(Tag.MSG, "Unhandled message received: %s", message.getClass().getSimpleName());
+            Log.error(Tag.PROC, "Unhandled message received: %s", message.getClass().getSimpleName());
         }
     }
 
