@@ -90,19 +90,19 @@ public class LoadTestMonitor extends MonitorTask {
 
         public final IntervalInfo registration;
         public final IntervalInfo phase1;
+        public final IntervalInfo authentication;
         public final IntervalInfo phase2;
         public final IntervalInfo securityModeControl;
         public final IntervalInfo phase3;
-        public final IntervalInfo authentication;
         public final IntervalInfo deregistration;
 
         private IntervalMetadata() {
             this.registration = new IntervalInfo("registration", null, getIntervalDisplay("registration"));
             this.phase1 = new IntervalInfo("phase1", "registration", getIntervalDisplay("phase1"));
+            this.authentication = new IntervalInfo("authentication", "registration", getIntervalDisplay("authentication"));
             this.phase2 = new IntervalInfo("phase2", "registration", getIntervalDisplay("phase2"));
             this.securityModeControl = new IntervalInfo("securityModeControl", "registration", getIntervalDisplay("securityModeControl"));
             this.phase3 = new IntervalInfo("phase3", "registration", getIntervalDisplay("phase3"));
-            this.authentication = new IntervalInfo("authentication", "registration", getIntervalDisplay("authentication"));
             this.deregistration = new IntervalInfo("deregistration", null, getIntervalDisplay("deregistration"));
         }
 
@@ -112,6 +112,8 @@ public class LoadTestMonitor extends MonitorTask {
                     return "Registration";
                 case "phase1":
                     return "Phase 1 (Registration-Authentication)";
+                case "authentication":
+                    return "Authentication";
                 case "phase2":
                     return "Phase 2 (Authentication-SecurityModeControl)";
                 case "securityModeControl":
@@ -120,8 +122,6 @@ public class LoadTestMonitor extends MonitorTask {
                     return "Phase 3 (SecurityModeControl-RegistrationAccept)";
                 case "deregistration":
                     return "De-Registration";
-                case "authentication":
-                    return "Authentication";
                 default:
                     return id;
             }
