@@ -108,8 +108,11 @@ public class Logger {
         String str = String.format(Locale.ENGLISH, message, args);
         String timestamp = getTime();
 
-        for (var handler : printHandlers)
-            handler.accept(new LogEntry(loggerName, severity, tag, str, timestamp, AnsiColor.generateCode(ansiColorFormat)));
+        for (var handler : printHandlers) {
+            if (tag != Tag.MSG) {
+                handler.accept(new LogEntry(loggerName, severity, tag, str, timestamp, AnsiColor.generateCode(ansiColorFormat)));
+            }
+        }
 
         String display = String.format(Locale.ENGLISH, "%s%s[%s] %s%s", getTime(), spacing, severity, tagging, str);
         console.println(ansiColorFormat, display);
