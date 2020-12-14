@@ -24,7 +24,13 @@ import tr.havelsan.ueransim.utils.Utils;
 import tr.havelsan.ueransim.utils.console.Log;
 import tr.havelsan.ueransim.utils.console.LogEntry;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 // TODO: What if multiple WS clients connect us?
@@ -140,6 +146,7 @@ public class WebApp {
                     push(new SwTestCases(ProcedureTester.testCases()));
                     push(new SwIntervalMetadata(LoadTestMonitor.IntervalMetadata.INSTANCE));
                     push(new SwLogMetadata(Severity.values(), Tag.values()));
+                    push(new SwConfigMetadata(ConfigMetadata.INSTANCE));
                 } else if (msg instanceof SocketWrapper) {
                     if (ws != null) {
                         ws.send(SocketWrapperSerializer.toJson(msg));
@@ -191,5 +198,45 @@ public class WebApp {
         protected void onIntervalResult(String id, String display, boolean isSuccess, String nodeName, long deltaMs) {
             senderTask.push(new SwIntervalResult(id, isSuccess, nodeName, deltaMs));
         }
+    }
+
+    public static class ConfigMetadata {
+        public static ConfigMetadata INSTANCE = new ConfigMetadata();
+
+        private final ConfigNode root;
+
+        public ConfigMetadata() {
+            this.root = new ConfigNode();
+            var file = new File("config");
+            buildTree(this.root, file);
+        }
+
+        private void buildTree(ConfigNode cursor, File file) {
+            cursor.path = file.getPath();
+            cursor.name = file.getName();
+
+            if (file.isDirectory()) {
+                cursor.children = new ArrayList<>();
+                var children = Objects.requireNonNull(file.listFiles());
+                Arrays.sort(children);
+                for (var child: children) {
+                    var node = new ConfigNode();
+                    cursor.children.add(node);
+                    buildTree(node, child);
+                }
+            } else {
+                try {
+                    cursor.content = Files.readString(Path.of(file.getPath()));
+                } catch (IOException ignored) {
+                }
+            }
+        }
+    }
+
+    private static class ConfigNode {
+        public String path;
+        public String name;
+        public ArrayList<ConfigNode> children;
+        public String content;
     }
 }
