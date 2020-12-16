@@ -36,8 +36,6 @@ public class WebApp {
     private UeRanSim ueransim;
 
     public WebApp() {
-        System.exit(1); // TODO
-
         Fun initTasks = () -> {
             receiverTask = new ReceiverTask();
             senderTask = new SenderTask();
