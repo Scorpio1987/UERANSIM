@@ -7,24 +7,31 @@ package tr.havelsan.ueransim.app.app.entry;
 
 import io.javalin.Javalin;
 import io.javalin.websocket.WsContext;
+import picocli.CommandLine;
 import tr.havelsan.ueransim.app.app.AppBuilder;
 import tr.havelsan.ueransim.app.app.AppConfig;
 import tr.havelsan.ueransim.app.app.UeRanSim;
+import tr.havelsan.ueransim.app.app.cli.CliOpt;
 import tr.havelsan.ueransim.app.app.monitor.LoadTestMonitor;
 import tr.havelsan.ueransim.app.app.monitor.StepperMonitor;
-import tr.havelsan.ueransim.app.common.sw.SocketWrapper;
-import tr.havelsan.ueransim.app.common.sw.SwCommand;
-import tr.havelsan.ueransim.app.common.sw.SwIntervalResult;
-import tr.havelsan.ueransim.app.common.sw.SwLog;
+import tr.havelsan.ueransim.app.common.Supi;
+import tr.havelsan.ueransim.app.common.sw.*;
 import tr.havelsan.ueransim.app.utils.SocketWrapperSerializer;
 import tr.havelsan.ueransim.itms.nts.NtsTask;
 import tr.havelsan.ueransim.utils.Fun;
+import tr.havelsan.ueransim.utils.Severity;
+import tr.havelsan.ueransim.utils.Tag;
 import tr.havelsan.ueransim.utils.Utils;
 import tr.havelsan.ueransim.utils.console.Log;
 import tr.havelsan.ueransim.utils.console.LogEntry;
+import tr.havelsan.ueransim.utils.exceptions.NotImplementedException;
+import tr.havelsan.ueransim.utils.octets.OctetString;
 
+import java.io.File;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 // TODO: What if multiple WS clients connect us?
 public class WebApp {
@@ -124,10 +131,8 @@ public class WebApp {
                 var msg = take();
                 if (msg instanceof OnConnected) {
                     ws = ((OnConnected) msg).ws;
-                    // TODO
-                    //push(new SwTestCases(ProcedureTester.testCases()));
-                    //push(new SwIntervalMetadata(LoadTestMonitor.IntervalMetadata.INSTANCE));
-                    //push(new SwLogMetadata(Severity.values(), Tag.values()));
+                    push(new SwIntervalMetadata(LoadTestMonitor.IntervalMetadata.INSTANCE));
+                    push(new SwLogMetadata(Severity.values(), Tag.values()));
                 } else if (msg instanceof SocketWrapper) {
                     if (ws != null) {
                         ws.send(SocketWrapperSerializer.toJson(msg));
@@ -179,5 +184,105 @@ public class WebApp {
         protected void onIntervalResult(String id, String display, boolean isSuccess, String nodeName, long deltaMs) {
             senderTask.push(new SwIntervalResult(id, isSuccess, nodeName, deltaMs));
         }
+    }
+
+    public static class CommandMetadata {
+        public static CommandMetadata INSTANCE = new CommandMetadata();
+
+        public final List<CommandInfo> commands;
+
+        private CommandMetadata() {
+            commands = new ArrayList<>();
+
+            var rootCommand = new CommandLine(new CliOpt.RootCommand());
+            for (var subCommand : rootCommand.getSubcommands().values()) {
+                if (!subCommand.getSubcommands().isEmpty())
+                    continue;
+
+                var name = subCommand.getCommandName();
+                var spec = subCommand.getCommandSpec();
+                var command = (CommandLine.Command) subCommand.getCommand().getClass().getAnnotation(CommandLine.Command.class);
+                var description = String.join(" ", command.description());
+                var parameters = new ArrayList<ParameterInfo>();
+
+                for (var param : spec.positionalParameters()) {
+                    parameters.add(getParameterInfo(param));
+                }
+
+                for (var option : spec.options()) {
+                    if (option.usageHelp() || option.versionHelp())
+                        continue;
+                    parameters.add(getParameterInfo(option));
+                }
+
+                // TODO: help
+                commands.add(new CommandInfo(name, description, parameters));
+            }
+        }
+
+        private ParameterInfo getParameterInfo(CommandLine.Model.ArgSpec arg) {
+            var name = arg.paramLabel();
+            var description = String.join(" ", arg.description());
+            var type = getParamType(arg.type());
+            var isPositional = arg.isPositional();
+            var isRequired = arg.required();
+            return new ParameterInfo(name, description, type, isPositional, isRequired);
+        }
+
+        private ParameterType getParamType(Class<?> cls) {
+            if (cls == boolean.class)
+                return ParameterType.BOOL;
+            if (cls == int.class || cls == long.class)
+                return ParameterType.INTEGER;
+            if (cls == float.class || cls == double.class)
+                return ParameterType.FLOAT;
+            if (cls == String.class)
+                return ParameterType.TEXT;
+            if (cls == OctetString.class)
+                return ParameterType.OCTET_STRING;
+            if (cls == File.class)
+                return ParameterType.FILE;
+            if (cls == Supi.class)
+                throw new NotImplementedException(""); // TODO
+            throw new IllegalArgumentException();
+        }
+    }
+
+    private static class CommandInfo {
+        public final String name;
+        public final String description;
+        public final List<ParameterInfo> parameters;
+
+        public CommandInfo(String name, String description, List<ParameterInfo> parameters) {
+            this.name = name;
+            this.description = description;
+            this.parameters = parameters;
+        }
+    }
+
+    private static class ParameterInfo {
+        public final String name;
+        public final String description;
+        public final ParameterType type;
+        public final boolean isPositional;
+        public final boolean isRequired;
+
+        public ParameterInfo(String name, String description, ParameterType type, boolean isPositional, boolean isRequired) {
+            this.name = name;
+            this.description = description;
+            this.type = type;
+            this.isPositional = isPositional;
+            this.isRequired = isRequired;
+        }
+    }
+
+    private enum ParameterType {
+        BOOL,
+        INTEGER,
+        FLOAT,
+        TEXT,
+        IMSI,
+        OCTET_STRING,
+        FILE,
     }
 }
