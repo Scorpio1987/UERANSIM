@@ -131,6 +131,7 @@ public class WebApp {
                 var msg = take();
                 if (msg instanceof OnConnected) {
                     ws = ((OnConnected) msg).ws;
+                    push(new SwCommandMetadata(CommandMetadata.INSTANCE));
                     push(new SwIntervalMetadata(LoadTestMonitor.IntervalMetadata.INSTANCE));
                     push(new SwLogMetadata(Severity.values(), Tag.values()));
                 } else if (msg instanceof SocketWrapper) {
