@@ -223,6 +223,10 @@ public class WebApp {
 
         private ParameterInfo getParameterInfo(CommandLine.Model.ArgSpec arg) {
             var name = arg.paramLabel();
+            if (name.startsWith("<"))
+                name = name.substring(1);
+            if (name.endsWith(">"))
+                name = name.substring(0, name.length() - 1);
             var description = String.join(" ", arg.description());
             var type = getParamType(arg.type());
             var isPositional = arg.isPositional();
