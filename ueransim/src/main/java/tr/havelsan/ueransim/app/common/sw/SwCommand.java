@@ -5,10 +5,14 @@
 
 package tr.havelsan.ueransim.app.common.sw;
 
+import java.util.Map;
+
 public class SwCommand extends SocketWrapper {
     public final String commandName;
+    public final Map<String, String> parameters;
 
-    public SwCommand(String commandName) {
+    public SwCommand(String commandName, Map<String, String> parameters) {
         this.commandName = commandName;
+        this.parameters = parameters;
     }
 }
