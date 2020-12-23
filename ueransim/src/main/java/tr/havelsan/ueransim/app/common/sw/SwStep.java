@@ -10,12 +10,14 @@ import tr.havelsan.ueransim.utils.Severity;
 public class SwStep extends SocketWrapper {
 
     public final String loggerName;
+    public final boolean isUplink;
     public final Severity severity;
     public final String messageName;
     public final String messageBody;
 
-    public SwStep(String loggerName, Severity severity, String messageName, String messageBody) {
+    public SwStep(String loggerName, boolean isUplink, Severity severity, String messageName, String messageBody) {
         this.loggerName = loggerName;
+        this.isUplink = isUplink;
         this.severity = severity;
         this.messageName = messageName;
         this.messageBody = messageBody;
