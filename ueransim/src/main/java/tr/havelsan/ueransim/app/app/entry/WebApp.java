@@ -7,33 +7,24 @@ package tr.havelsan.ueransim.app.app.entry;
 
 import io.javalin.Javalin;
 import io.javalin.websocket.WsContext;
-import picocli.CommandLine;
 import tr.havelsan.ueransim.app.app.AppBuilder;
 import tr.havelsan.ueransim.app.app.AppConfig;
 import tr.havelsan.ueransim.app.app.UeRanSim;
-import tr.havelsan.ueransim.app.app.cli.CliOpt;
 import tr.havelsan.ueransim.app.app.monitor.LoadTestMonitor;
 import tr.havelsan.ueransim.app.app.monitor.StepperMonitor;
-import tr.havelsan.ueransim.app.common.Supi;
-import tr.havelsan.ueransim.app.common.sw.*;
+import tr.havelsan.ueransim.app.common.sw.SocketWrapper;
+import tr.havelsan.ueransim.app.common.sw.SwCommand;
+import tr.havelsan.ueransim.app.common.sw.SwIntervalResult;
+import tr.havelsan.ueransim.app.common.sw.SwLog;
 import tr.havelsan.ueransim.app.utils.SocketWrapperSerializer;
 import tr.havelsan.ueransim.nts.nts.NtsTask;
 import tr.havelsan.ueransim.utils.Fun;
-import tr.havelsan.ueransim.utils.Severity;
 import tr.havelsan.ueransim.utils.Tag;
 import tr.havelsan.ueransim.utils.Utils;
 import tr.havelsan.ueransim.utils.console.Log;
 import tr.havelsan.ueransim.utils.console.LogEntry;
-import tr.havelsan.ueransim.utils.octets.OctetString;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
 import java.util.function.Consumer;
 
 // TODO: What if multiple WS clients connect us?
@@ -137,10 +128,10 @@ public class WebApp {
                 var msg = take();
                 if (msg instanceof OnConnected) {
                     ws = ((OnConnected) msg).ws;
-                    push(new SwCommandMetadata(CommandMetadata.INSTANCE));
-                    push(new SwIntervalMetadata(LoadTestMonitor.IntervalMetadata.INSTANCE));
-                    push(new SwLogMetadata(Severity.values(), Tag.values()));
-                    push(new SwConfigMetadata(ConfigMetadata.INSTANCE));
+                    push(Metadata.COMMAND_METADATA);
+                    push(Metadata.CONFIG_METADATA);
+                    push(Metadata.INTERVAL_METADATA);
+                    push(Metadata.LOG_METADATA);
                 } else if (msg instanceof SocketWrapper) {
                     if (ws != null) {
                         ws.send(SocketWrapperSerializer.toJson(msg));
@@ -192,149 +183,5 @@ public class WebApp {
         protected void onIntervalResult(String id, String display, boolean isSuccess, String nodeName, long deltaMs) {
             senderTask.push(new SwIntervalResult(id, isSuccess, nodeName, deltaMs));
         }
-    }
-
-    public static class CommandMetadata {
-        public static CommandMetadata INSTANCE = new CommandMetadata();
-
-        public final List<CommandInfo> commands;
-
-        private CommandMetadata() {
-            commands = new ArrayList<>();
-
-            var rootCommand = new CommandLine(new CliOpt.RootCommand());
-            for (var subCommand : rootCommand.getSubcommands().values()) {
-                if (!subCommand.getSubcommands().isEmpty())
-                    continue;
-
-                var name = subCommand.getCommandName();
-                var spec = subCommand.getCommandSpec();
-                var command = (CommandLine.Command) subCommand.getCommand().getClass().getAnnotation(CommandLine.Command.class);
-                var description = String.join(" ", command.description());
-                var parameters = new ArrayList<ParameterInfo>();
-
-                for (var param : spec.positionalParameters()) {
-                    parameters.add(getParameterInfo(param));
-                }
-
-                for (var option : spec.options()) {
-                    if (option.usageHelp() || option.versionHelp())
-                        continue;
-                    parameters.add(getParameterInfo(option));
-                }
-
-                // TODO: help
-                commands.add(new CommandInfo(name, description, parameters));
-            }
-        }
-
-        private ParameterInfo getParameterInfo(CommandLine.Model.ArgSpec arg) {
-            var name = arg.paramLabel();
-            if (name.startsWith("<"))
-                name = name.substring(1);
-            if (name.endsWith(">"))
-                name = name.substring(0, name.length() - 1);
-            var description = String.join(" ", arg.description());
-            var type = getParamType(arg.type());
-            var isPositional = arg.isPositional();
-            var isRequired = arg.required();
-            return new ParameterInfo(name, description, type, isPositional, isRequired);
-        }
-
-        private ParameterType getParamType(Class<?> cls) {
-            if (cls == boolean.class)
-                return ParameterType.BOOL;
-            if (cls == int.class || cls == long.class)
-                return ParameterType.INTEGER;
-            if (cls == float.class || cls == double.class)
-                return ParameterType.FLOAT;
-            if (cls == String.class)
-                return ParameterType.TEXT;
-            if (cls == OctetString.class)
-                return ParameterType.OCTET_STRING;
-            if (cls == File.class)
-                return ParameterType.FILE;
-            if (cls == Supi.class)
-                return ParameterType.IMSI;
-            throw new IllegalArgumentException();
-        }
-    }
-
-    private static class CommandInfo {
-        public final String name;
-        public final String description;
-        public final List<ParameterInfo> parameters;
-
-        public CommandInfo(String name, String description, List<ParameterInfo> parameters) {
-            this.name = name;
-            this.description = description;
-            this.parameters = parameters;
-        }
-    }
-
-    private static class ParameterInfo {
-        public final String name;
-        public final String description;
-        public final ParameterType type;
-        public final boolean isPositional;
-        public final boolean isRequired;
-
-        public ParameterInfo(String name, String description, ParameterType type, boolean isPositional, boolean isRequired) {
-            this.name = name;
-            this.description = description;
-            this.type = type;
-            this.isPositional = isPositional;
-            this.isRequired = isRequired;
-        }
-    }
-
-    private enum ParameterType {
-        BOOL,
-        INTEGER,
-        FLOAT,
-        TEXT,
-        IMSI,
-        OCTET_STRING,
-        FILE,
-    }
-
-    public static class ConfigMetadata {
-        public static ConfigMetadata INSTANCE = new ConfigMetadata();
-
-        private final ConfigNode root;
-
-        public ConfigMetadata() {
-            this.root = new ConfigNode();
-            var file = new File("config");
-            buildTree(this.root, file);
-        }
-
-        private void buildTree(ConfigNode cursor, File file) {
-            cursor.path = file.getPath();
-            cursor.name = file.getName();
-
-            if (file.isDirectory()) {
-                cursor.children = new ArrayList<>();
-                var children = Objects.requireNonNull(file.listFiles());
-                Arrays.sort(children);
-                for (var child: children) {
-                    var node = new ConfigNode();
-                    cursor.children.add(node);
-                    buildTree(node, child);
-                }
-            } else {
-                try {
-                    cursor.content = Files.readString(Path.of(file.getPath()));
-                } catch (IOException ignored) {
-                }
-            }
-        }
-    }
-
-    private static class ConfigNode {
-        public String path;
-        public String name;
-        public ArrayList<ConfigNode> children;
-        public String content;
     }
 }
