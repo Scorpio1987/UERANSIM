@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.function.Consumer;
 
 // TODO: What if multiple WS clients connect us?
+// TODO: delete this class
 public class WebApp {
 
     private ReceiverTask receiverTask;

@@ -19,6 +19,8 @@ public class AgentApp {
     private CliTask cliTask;
     private DispatchMonitor dispatchMonitor;
 
+    private WebInterface webInterface;
+
     public static void main(String[] args) {
         BaseApp.main(args, true);
         new AgentApp().main();
@@ -35,5 +37,8 @@ public class AgentApp {
 
         cliTask = new CliTask(appConfig, ueransim);
         cliTask.start();
+
+        webInterface = new WebInterface();
+        webInterface.start();
     }
 }

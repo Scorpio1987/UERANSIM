@@ -6,6 +6,7 @@
 package tr.havelsan.ueransim.app.app.cli;
 
 import tr.havelsan.ueransim.app.common.cli.CmdMessage;
+import tr.havelsan.ueransim.app.common.sw.SwCommand;
 import tr.havelsan.ueransim.utils.Constants;
 import tr.havelsan.ueransim.utils.Json;
 import tr.havelsan.ueransim.utils.OctetInputStream;
@@ -200,5 +201,10 @@ public class CliUtils {
             throw new RuntimeException("unbalanced quotes in " + toProcess);
         }
         return result.toArray(new String[0]);
+    }
+
+    public static String[] parseCommand(SwCommand command) {
+        // TODO
+        return null;
     }
 }
