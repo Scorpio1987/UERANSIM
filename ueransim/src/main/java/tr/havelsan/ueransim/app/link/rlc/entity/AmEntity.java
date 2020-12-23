@@ -5,15 +5,18 @@
 
 package tr.havelsan.ueransim.app.link.rlc.entity;
 
-import tr.havelsan.ueransim.app.link.rlc.IRlcConsumer;
-import tr.havelsan.ueransim.app.link.rlc.enums.ESegmentInfo;
+import tr.havelsan.ueransim.app.link.rlc.encoding.AmdEncoder;
+import tr.havelsan.ueransim.app.link.rlc.encoding.StatusEncoder;
+import tr.havelsan.ueransim.app.link.rlc.interfaces.IRlcConsumer;
 import tr.havelsan.ueransim.app.link.rlc.pdu.AmdPdu;
-import tr.havelsan.ueransim.app.link.rlc.sdu.RlcSdu;
-import tr.havelsan.ueransim.app.link.rlc.sdu.RlcSduSegment;
+import tr.havelsan.ueransim.app.link.rlc.pdu.StatusPdu;
+import tr.havelsan.ueransim.app.link.rlc.utils.*;
+import tr.havelsan.ueransim.utils.BitInputStream;
 import tr.havelsan.ueransim.utils.OctetInputStream;
 import tr.havelsan.ueransim.utils.OctetOutputStream;
 import tr.havelsan.ueransim.utils.octets.OctetString;
 
+import java.util.HashSet;
 import java.util.LinkedList;
 
 public class AmEntity extends RlcEntity {
@@ -22,21 +25,27 @@ public class AmEntity extends RlcEntity {
     private int snLength;
     private int snModulus;
     private int windowSize;
-    private int rxMaxSize;
     private int txMaxSize;
-    private int tReassemblyPeriod;
-    private int tPollRetransmitPeriod;
-    private int tStatusProhibitPeriod;
+    private int pollPdu;
+    private int pollByte;
+    private int maxRetThreshold;
 
     // TX state variables
+    private int txNext;
     private int txNextAck;
+    private int pollSn;
+    private int pduWithoutPoll;
+    private int byteWithoutPoll;
 
     // TX buffer
     private int txCurrentSize;
     private LinkedList<RlcSduSegment> txBuffer;
 
-    // Retransmission buffer
+    // Buffers
+    private RlcRxBuffer<AmdPdu> rxBuffer;
     private LinkedList<RlcSduSegment> retBuffer;
+    private LinkedList<RlcSduSegment> waitBuffer;
+    private LinkedList<RlcSduSegment> ackBuffer;
 
     // RX state variables
     private int rxNext;
@@ -44,18 +53,15 @@ public class AmEntity extends RlcEntity {
     private int rxHighestStatus;
     private int rxNextStatusTrigger;
 
-    // RX buffer
-    private int rxCurrentSize;
-    private LinkedList<AmdPdu> rxBuffer;
-
     // Custom state variables
     private boolean statusTriggered;
+    private boolean forcePoll;
 
     // Timers
-    private long tCurrent;              // Not a timer, but holds the current time in ms.
-    private long tPollRetransmitStart;  // Used by the transmitting side of an AM RLC entity in order to retransmit a poll
-    private long tReassemblyStart;      // Reassembling timer
-    private long tStatusProhibitStart;  // Used by the entity in order to prohibit transmission of a STATUS PDU
+    private long tCurrent;
+    private RlcTimer pollRetransmitTimer;
+    private RlcTimer reassemblyTimer;
+    private RlcTimer statusProhibitTimer;
 
     //======================================================================================================
     //                                           INITIALIZATION
@@ -104,162 +110,72 @@ public class AmEntity extends RlcEntity {
     //                                          INTERNAL METHODS
     //======================================================================================================
 
-    private boolean isAlreadyReceived(int sn, int so, int size) {
-        if (rxBuffer.isEmpty())
-            return false;
-
-        var it = rxBuffer.listIterator();
-        var pdu = it.next();
-
-        int n;
-        while (pdu != null && size > 0) {
-            if (pdu.sn == sn) {
-                if (pdu.so <= so && so < pdu.so + pdu.data.length) {
-                    n = pdu.data.length - (so - pdu.so);
-                    size -= n;
-                    so += n;
-                } else if (pdu.so <= so + size - 1 && so + size - 1 < pdu.so + pdu.data.length) {
-                    n = size - (pdu.so - so);
-                    size -= n;
-                }
-            }
-            pdu = it.hasNext() ? it.next() : null;
-        }
-        return size <= 0;
+    private boolean windowStalling() {
+        return !(snCompareTx(txNextAck, txNext) <= 0
+                && snCompareTx(txNext, (txNextAck + windowSize) % snModulus) < 0);
     }
 
-    private void insertReception(AmdPdu pdu) {
-        int index = -1;
+    private int amdPduHeaderSize(ESegmentInfo si) {
+        int res = 2;
+        if (snLength == 18) res++;
+        if (!si.hasFirst()) res += 2;
+        return res;
+    }
 
-        for (int i = 0; i < rxBuffer.size(); i++) {
-            var p = rxBuffer.get(i);
-            if (p.sn == pdu.sn) {
-                if (p.so > pdu.so) {
-                    break;
-                }
-            } else if (snCompareRx(p.sn, pdu.sn) > 0) {
+    private RlcSduSegment performSegmentation(RlcSduSegment sdu, int maxSize) {
+        int headerSize = amdPduHeaderSize(sdu.si);
+        if (headerSize + 1 > maxSize)
+            return null;
+
+        int overflowed = headerSize + sdu.size - maxSize;
+
+        sdu.si = sdu.si.asNotLast();
+        sdu.size -= overflowed;
+
+        var next = new RlcSduSegment(sdu.sdu);
+        next.si = sdu.si.asNotFirst();
+        next.size = overflowed;
+        next.so = sdu.so + sdu.size;
+
+        return next;
+    }
+
+    private boolean soOverlaps(int start1, int end1, int start2, int end2) {
+        return start1 < start2 ? (end1 == -1 || end1 >= start2) : (end2 == -1 || start1 <= end2);
+    }
+
+    private boolean areAllSiblingSegmentsAreInAck(RlcSduSegment segment) {
+        // TODO: recheck this method
+        int sn = segment.sdu.sn;
+
+        for (var s : txBuffer) {
+            if (snCompareTx(s.sdu.sn, sn) > 0)
                 break;
-            }
-
-            index = i;
-        }
-
-        rxBuffer.add(index + 1, pdu);
-    }
-
-    private int firstIndexOfSn(int sn) {
-        int index = -1;
-
-        for (int i = 0; i < rxBuffer.size(); i++) {
-            var pdu = rxBuffer.get(i);
-            if (pdu.sn == sn) {
-                index = i;
-                break;
-            }
-        }
-
-        return index;
-    }
-
-    private boolean isAllSegmentsReceived(int sn) {
-        int index = firstIndexOfSn(sn);
-        if (index == -1)
-            return false;
-
-        // WARNING: Check if it is already reassembled and delivered. Returning false if it is
-        //  already processes. Because no need to reprocess it. We can consider this method as
-        //  "ready to reassemble and deliver" instead of "is all segments received?"
-        if (rxBuffer.get(index)._isProcessed)
-            return false;
-
-        int maxOffset = -1;
-
-        for (int i = index; i < rxBuffer.size(); i++) {
-            var pdu = rxBuffer.get(i);
-
-            if (pdu.so > maxOffset + 1)
+            if (s.sdu.sn == sn)
                 return false;
-            if (pdu.si.hasLast())
-                return true;
-
-            var endOffset = pdu.so + pdu.data.length - 1;
-            if (endOffset > maxOffset)
-                maxOffset = endOffset;
         }
-
-        return false;
-    }
-
-    private void reassembleAndDeliver(int sn) {
-        int startIndex = firstIndexOfSn(sn);
-
-        if (startIndex == -1)
-            return;
-
-        int endIndex = startIndex;
-        while (endIndex + 1 < rxBuffer.size() && rxBuffer.get(endIndex + 1).sn == sn) {
-            endIndex++;
-        }
-
-        var output = new OctetOutputStream();
-
-        for (int i = startIndex; i <= endIndex; i++) {
-            var pdu = rxBuffer.get(i);
-            output.writeOctetString(pdu.data);
-            pdu._isProcessed = true;
-            rxCurrentSize -= pdu.data.length;
-        }
-
-        consumer.deliverSdu(this, output.toOctetString());
-    }
-
-    private boolean hasMissingSegment(int sn) {
-        int index = firstIndexOfSn(sn);
-
-        if (index == -1) {
-            // No such a PDU, therefore we don't have a missing segment.
-            return false;
-        }
-
-        if (rxBuffer.get(index)._isProcessed) {
-            // The related SN is already processed, therefore we don't have a missing segment.
-            return false;
-        }
-
-        int endOffset = -1;
-        while (true) {
-            if (index >= rxBuffer.size())
+        for (var s : retBuffer) {
+            if (snCompareTx(s.sdu.sn, sn) > 0)
                 break;
-
-            var pdu = rxBuffer.get(index);
-            if (pdu.sn != sn) {
+            if (s.sdu.sn == sn)
+                return false;
+        }
+        for (var s : waitBuffer) {
+            if (snCompareTx(s.sdu.sn, sn) > 0)
                 break;
-            }
-
-            if (pdu.so > endOffset + 1)
-                return true;
-
-            int newOffset = pdu.so + pdu.data.length - 1;
-            if (newOffset > endOffset)
-                endOffset = newOffset;
-
-            index++;
+            if (s.sdu.sn == sn)
+                return false;
         }
 
-        return false;
+        return true;
     }
 
-    private boolean isDelivered(int sn) {
-        for (var pdu : rxBuffer) {
-            if (pdu.sn == sn && pdu._isProcessed)
-                return true;
-        }
-        return false;
-    }
-
-    private boolean pendingStatusToSend() {
-        return statusTriggered &&
-                (tStatusProhibitStart == 0 || tCurrent - tStatusProhibitStart > tStatusProhibitPeriod);
+    private void insertToList(LinkedList<RlcSduSegment> list, RlcSduSegment segment) {
+        RlcUtils.insertSortedLinkedList(list, segment, (a, b) -> {
+            if (a.sdu.sn == b.sdu.sn)
+                return Integer.compare(a.so, b.so);
+            return snCompareTx(a.sdu.sn, b.sdu.sn);
+        });
     }
 
     //======================================================================================================
@@ -273,14 +189,19 @@ public class AmEntity extends RlcEntity {
 
         // Data PDU
         if (data.get1(0).getBitB(7)) {
-            var amdPdu = AmdPdu.decode(new OctetInputStream(data), snLength == 12);
+            var amdPdu = AmdEncoder.decode(new OctetInputStream(data), snLength == 12);
             receiveAmdPdu(amdPdu);
         }
         // Control PDU
         else {
-            throw new RuntimeException("not implemented yet"); // TODO
-        }
+            if (data.get1(0).getBitRangeI(4, 6) != 0) {
+                // Discard the control PDU if it is not a STATUS PDU
+                return;
+            }
 
+            var statusPdu = StatusEncoder.decode(new BitInputStream(data), snLength == 12);
+            receiveStatusPdu(statusPdu);
+        }
     }
 
     private void receiveAmdPdu(AmdPdu pdu) {
@@ -303,7 +224,7 @@ public class AmEntity extends RlcEntity {
             return;
         }
 
-        if (rxCurrentSize + pdu.data.length > rxMaxSize) {
+        if (!rxBuffer.hasRoomFor(pdu)) {
             // No room in RX buffer, discard PDU.
             triggerControl.run();
             return;
@@ -317,14 +238,13 @@ public class AmEntity extends RlcEntity {
 
         // if byte segment numbers y to z of the RLC SDU with SN = x have been received before:
         //  discard the received AMD PDU
-        if (isAlreadyReceived(pdu.sn, pdu.so, pdu.data.length)) {
+        if (rxBuffer.isAlreadyReceived(pdu.sn, pdu.so, pdu.data.length)) {
             triggerControl.run();
             return;
         }
 
         // Place the received AMD PDU in the reception buffer
-        rxCurrentSize += pdu.data.length;
-        insertReception(pdu);
+        rxBuffer.add(pdu);
 
         // Actions when an AMD PDU is placed in the reception buffer
         actionReception(pdu);
@@ -347,6 +267,49 @@ public class AmEntity extends RlcEntity {
         }
     }
 
+    private void receiveStatusPdu(StatusPdu pdu) {
+        // If the STATUS report comprises a positive or negative acknowledgement for the RLC SDU
+        //  with sequence number equal to POLL_SN:
+        //  -    if    t-PollRetransmit is running:
+        //  -    stop and reset t-PollRetransmit.
+        if (snCompareTx(pollSn, pdu.ackSn) < 0) {
+            pollRetransmitTimer.stop();
+        }
+
+        ackReceived(pdu.ackSn);
+
+        var alreadyRetIncremented = new HashSet<Integer>();
+
+        for (var nackBlock : pdu.nackBlocks) {
+
+            int nackSn = nackBlock.nackSn;
+            int soStart = nackBlock.soStart;
+            int soEnd = nackBlock.soEnd;
+
+            if (soStart == -1 && soEnd == -1) {
+                soStart = 0;
+                soEnd = -1;
+            } else {
+                if (soEnd == 0xffff)
+                    soEnd = -1;
+            }
+
+            int range = nackBlock.nackRange == -1 ? 1 : nackBlock.nackRange;
+
+            for (int i = 0; i < range; i++) {
+                nackReceived((nackSn + i) % snModulus, i == 0 ? soStart : 0,
+                        i == range - 1 ? soEnd : -1, alreadyRetIncremented);
+            }
+
+            // Similar as above
+            if (snCompareTx(nackSn, pollSn) <= 0 && snCompareTx(pollSn, (nackSn + range) % snModulus) < 0) {
+                pollRetransmitTimer.stop();
+            }
+        }
+
+        checkForSuccessIndication();
+    }
+
     private void actionReception(AmdPdu pdu) {
         int x = pdu.sn;
 
@@ -354,16 +317,19 @@ public class AmEntity extends RlcEntity {
         if (snCompareRx(x, rxNextHighest) >= 0)
             rxNextHighest = (x + 1) % snModulus;
 
-        if (isAllSegmentsReceived(x)) {
+        if (rxBuffer.isAllSegmentsReceived(x)) {
             // Reassemble the RLC SDU from AMD PDU(s) with SN = x,
             //  remove RLC headers when doing so and deliver the reassembled RLC SDU to upper layer;
-            reassembleAndDeliver(pdu.sn);
+            var reassembled = rxBuffer.reassemble(pdu.sn);
+            if (reassembled != null) {
+                consumer.deliverSdu(this, reassembled);
+            }
 
             // If x = RX_Highest_Status, update RX_Highest_Status to the SN of the first RLC SDU with
             //  SN > current RX_Highest_Status for which not all bytes have been received.
             if (x == rxHighestStatus) {
                 int n = rxHighestStatus;
-                while (isDelivered(n)) {
+                while (rxBuffer.isDelivered(n)) {
                     n = (n + 1) % snModulus;
                 }
                 rxHighestStatus = n;
@@ -372,46 +338,137 @@ public class AmEntity extends RlcEntity {
             // If x = RX_Next: update RX_Next to the SN of the first RLC SDU with SN > current RX_Next
             //  for which not all bytes have been received.
             if (x == rxNext) {
-
-                // TODO, WARNING: Not completely sure
-                while (!rxBuffer.isEmpty() && rxBuffer.peekFirst()._isProcessed && rxBuffer.peekFirst().sn == rxNext) {
-                    do {
-                        rxBuffer.removeFirst();
-                    } while (!rxBuffer.isEmpty() && rxBuffer.peekFirst().sn == rxNext);
-                    rxNext = (rxNext + 1) % snModulus;
-                }
+                rxNext = rxBuffer.amReassembledAndXEqualsRxNext(rxNext, snModulus);
             }
         }
 
         // if t-Reassembly is running
-        if (tReassemblyStart > 0) {
+        if (reassemblyTimer.isRunning()) {
             if (rxNextStatusTrigger == rxNext // if RX_Next_Status_Trigger = RX_Next; or
                     ||
                     // if RX_Next_Status_Trigger = RX_Next + 1 and there is no missing byte segment of the SDU
                     //  associated with SN = RX_Next before the last byte of all received segments of this SDU; or
-                    (rxNextStatusTrigger == (rxNext + 1) % snModulus && !hasMissingSegment(rxNext)) ||
+                    (rxNextStatusTrigger == (rxNext + 1) % snModulus && !rxBuffer.hasMissingBytes(rxNext)) ||
                     // if RX_Next_Status_Trigger falls outside of the receiving window and RX_Next_Status_Trigger
                     //  is not equal to RX_Next + AM_Window_Size:
                     (!isInReceiveWindow(rxNextStatusTrigger) && rxNextStatusTrigger != (rxNext + windowSize) % snModulus)) {
 
                 // Stop and reset t-Reassembly.
-                tReassemblyStart = 0;
+                reassemblyTimer.stop();
             }
         }
 
         // if t-Reassembly is not running (includes the case t-Reassembly is stopped due to actions above)
-        if (tReassemblyStart == 0) {
+        if (!reassemblyTimer.isRunning()) {
             // if RX_Next_Highest> RX_Next +1; or
             if (snCompareRx(rxNextHighest, (rxNext + 1) % snModulus) > 0
                     // if RX_Next_Highest = RX_Next + 1 and there is at least one missing byte segment of the SDU
                     //  associated with SN = RX_Next before the last byte of all received segments of this SDU:
-                    || (rxNextHighest == (rxNext + 1) % snModulus && hasMissingSegment(rxNext))) {
+                    || (rxNextHighest == (rxNext + 1) % snModulus && rxBuffer.hasMissingBytes(rxNext))) {
 
                 // Start t-Reassembly
-                tReassemblyStart = tCurrent;
+                reassemblyTimer.start(tCurrent);
                 // Set RX_Next_Status_Trigger to RX_Next_Highest
                 rxNextStatusTrigger = rxNextHighest;
             }
+        }
+    }
+
+    private void ackReceived(int ackSn) {
+        boolean[] alreadyDec = new boolean[32768];
+
+        var it = waitBuffer.listIterator();
+        while (it.hasNext()) {
+            var segment = it.next();
+            if (snCompareTx(segment.sdu.sn, ackSn) < 0) {
+                it.remove();
+                insertToList(ackBuffer, segment);
+            }
+        }
+
+        it = retBuffer.listIterator();
+        while (it.hasNext()) {
+            var segment = it.next();
+            if (snCompareTx(segment.sdu.sn, ackSn) < 0) {
+
+                if (!alreadyDec[segment.sdu.sn]) {
+                    segment.sdu.retransmissionCount--;
+                    alreadyDec[segment.sdu.sn] = true;
+                }
+
+                it.remove();
+                insertToList(ackBuffer, segment);
+            }
+        }
+    }
+
+    private void nackReceived(int nackSn, int soStart, int soEnd, HashSet<Integer> alreadyRetIncremented) {
+        if (snCompareTx(txNextAck, nackSn) > 0 || snCompareTx(nackSn, txNext) >= 0)
+            return;
+
+        var it = waitBuffer.listIterator();
+        while (it.hasNext()) {
+            var segment = it.next();
+
+            if (segment.sdu.sn == nackSn) {
+                if (soOverlaps(soStart, soEnd, segment.so, segment.so + segment.size - 1)) {
+                    it.remove();
+                    considerRetransmission(segment, !alreadyRetIncremented.contains(nackSn));
+                    alreadyRetIncremented.add(nackSn);
+                }
+            }
+        }
+
+        it = ackBuffer.listIterator();
+        while (it.hasNext()) {
+            var segment = it.next();
+
+            if (segment.sdu.sn == nackSn) {
+                if (soOverlaps(soStart, soEnd, segment.so, segment.so + segment.size - 1)) {
+                    it.remove();
+                    considerRetransmission(segment, !alreadyRetIncremented.contains(nackSn));
+                    alreadyRetIncremented.add(nackSn);
+                }
+            }
+        }
+    }
+
+    private void considerRetransmission(RlcSduSegment segment, boolean updateRetX) {
+        if (updateRetX) {
+            segment.sdu.retransmissionCount++;
+            if (segment.sdu.retransmissionCount >= maxRetThreshold) {
+                consumer.maxRetransmissionReached(this);
+            }
+        }
+        insertToList(retBuffer, segment);
+    }
+
+    private void checkForSuccessIndication() {
+        var it = ackBuffer.listIterator();
+
+        // TODO: Currently sequential succ indication, but not immediate.
+        while (it.hasNext()) {
+            var segment = it.next();
+            if (segment.sdu.sn != txNextAck)
+                break;
+
+            if (!areAllSiblingSegmentsAreInAck(segment))
+                break;
+
+            txCurrentSize -= segment.sdu.data.length;
+
+            consumer.sduSuccessfulDelivery(this, segment.sdu.sduId);
+
+            it.remove();
+
+            while (it.hasNext()) {
+                var s = it.next();
+                if (s.sdu.sn == segment.sdu.sn) {
+                    it.remove();
+                }
+            }
+
+            txNextAck = (txNextAck + 1) % snModulus;
         }
     }
 
@@ -437,7 +494,7 @@ public class AmEntity extends RlcEntity {
         segment.si = ESegmentInfo.FULL;
 
         txCurrentSize += segment.size;
-        txBuffer.addLast(segment);
+        insertToList(txBuffer, segment);
     }
 
     //======================================================================================================
@@ -451,9 +508,10 @@ public class AmEntity extends RlcEntity {
         //  previously transmitted RLC SDUs or RLC SDU segments over transmission of AMD PDUs containing not
         //  previously transmitted RLC SDUs or RLC SDU segments.
 
-        // At the first transmission opportunity indicated by lower layer,
-        //  construct a STATUS PDU and submit it to lower layer
-        if (pendingStatusToSend()) {
+        // When STATUS reporting has been triggered, the receiving side of an AM RLC entity shall:
+        //  ... At the first transmission opportunity indicated by lower layer, construct a STATUS PDU and submit
+        //  it to lower layer ...
+        if (statusTriggered && statusProhibitTimer.stoppedOrExpired(tCurrent)) {
             var res = createStatusPdu(maxSize);
             if (res != null)
                 return res;
@@ -469,18 +527,146 @@ public class AmEntity extends RlcEntity {
     }
 
     private OctetString createStatusPdu(int maxSize) {
+        if (maxSize < 3)
+            return null;
+
         // TODO
         return null;
     }
 
     private OctetString createRetPdu(int maxSize) {
-        // TODO
-        return null;
+        var segment = retBuffer.peekFirst();
+        if (segment == null) {
+            return null;
+        }
+
+        int headerSize = amdPduHeaderSize(segment.si);
+
+        // Fragmentation is irrelevant since no byte fits the size.
+        if (headerSize + 1 > maxSize) {
+            return null;
+        }
+
+        retBuffer.removeFirst();
+
+        // Perform segmentation if it is needed
+        if (headerSize + segment.size > maxSize) {
+            var next = performSegmentation(segment, maxSize);
+            retBuffer.addFirst(next);
+        }
+
+        insertToList(waitBuffer, segment);
+
+        boolean includePoll = pollCheckForTransmission();
+
+        if (forcePoll) {
+            includePoll = true;
+            forcePoll = false;
+        }
+
+        return generateAmdForSdu(segment, includePoll);
     }
 
     private OctetString createTxPdu(int maxSize) {
-        // TODO
-        return null;
+        if (windowStalling())
+            return null;
+
+        var segment = txBuffer.peekFirst();
+        if (segment == null) {
+            return null;
+        }
+
+        int headerSize = amdPduHeaderSize(segment.si);
+
+        // Fragmentation is irrelevant since no byte fits the size.
+        if (headerSize + 1 > maxSize) {
+            return null;
+        }
+
+        segment.sdu.sn = txNext;
+        txBuffer.removeFirst();
+
+        // Perform segmentation if it is needed
+        if (headerSize + segment.size > maxSize) {
+            var next = performSegmentation(segment, maxSize);
+            txBuffer.addFirst(next);
+        }
+
+        if (segment.si.hasLast()) {
+            txNext = (txNext + 1) % snModulus;
+        }
+
+        insertToList(waitBuffer, segment);
+
+        // 5.3.3.2	Transmission of a AMD PDU
+        //  Upon notification of a transmission opportunity by lower layer, for each AMD PDU submitted for
+        //   transmission such that the AMD PDU contains either a not previously transmitted RLC SDU or an
+        //   RLC SDU segment containing not previously transmitted byte segment, the transmitting side of
+        //   an AM RLC entity shall:
+
+        // increment PDU_WITHOUT_POLL by one
+        pduWithoutPoll++;
+
+        // increment BYTE_WITHOUT_POLL by every new byte of Data field element
+        //  that it maps to the Data field of the AMD PDU;
+        byteWithoutPoll += segment.size;
+
+        boolean includePoll = false;
+
+        // if PDU_WITHOUT_POLL >= pollPDU; or if BYTE_WITHOUT_POLL >= pollByte: include a poll in the AMD PDU
+        if ((pollPdu != -1 && pduWithoutPoll >= pollPdu) || (pollByte != -1 && byteWithoutPoll >= pollByte))
+            includePoll = true;
+        else if (pollCheckForTransmission()) {
+            includePoll = true;
+        }
+
+        if (forcePoll) {
+            includePoll = true;
+            forcePoll = false;
+        }
+
+        return generateAmdForSdu(segment, includePoll);
+    }
+
+    private boolean pollCheckForTransmission() {
+        // if both the transmission buffer and the retransmission buffer becomes empty (excluding transmitted
+        //  RLC SDUs or RLC SDU segments awaiting acknowledgements) after the transmission of the AMD PDU;
+        //  or
+        //  if no new RLC SDU can be transmitted after the transmission of the AMD PDU (e.g. due to window stalling);
+        //  then include a poll in the AMD PDU.
+
+        return (txBuffer.isEmpty() && retBuffer.isEmpty()) || windowStalling();
+    }
+
+    private OctetString generateAmdForSdu(RlcSduSegment segment, boolean includePoll) {
+        var pdu = new AmdPdu();
+        pdu.p = false;
+        pdu.si = segment.si;
+        pdu.sn = segment.sdu.sn;
+        pdu.so = segment.so;
+        pdu.data = segment.sdu.data.substring(segment.so, segment.size);
+
+        if (includePoll) {
+            // To include a poll in an AMD PDU, the transmitting side of an AM RLC entity shall
+            // set the P field of the AMD PDU to "1";
+            pdu.p = true;
+
+            // set PDU_WITHOUT_POLL to 0;
+            pduWithoutPoll = 0;
+            // set BYTE_WITHOUT_POLL to 0.
+            byteWithoutPoll = 0;
+
+            // set POLL_SN to the highest SN of the AMD PDU among the AMD PDUs submitted to lower layer
+            //  TODO: check this later
+            pollSn = (txNext - 1 + snModulus) % snModulus;
+
+            // (re)start  t-PollRetransmit
+            pollRetransmitTimer.start(tCurrent);
+        }
+
+        var stream = new OctetOutputStream();
+        AmdEncoder.encode(stream, pdu, snLength == 12);
+        return stream.toOctetString();
     }
 
     //======================================================================================================
@@ -491,17 +677,10 @@ public class AmEntity extends RlcEntity {
     public void timerCycle(long currentTime) {
         tCurrent = currentTime;
 
-        // If PollRetransmit is running and expired
-        if (tPollRetransmitStart != 0 && tCurrent > tPollRetransmitStart + tPollRetransmitPeriod) {
-            // Stop timer and Handle expire actions
-            tPollRetransmitStart = 0;
+        if (pollRetransmitTimer.cycle(currentTime)) {
             actionPollRetransmitTimerExpired();
         }
-
-        // If t-Reassembly is running and expired
-        if (tReassemblyStart != 0 && tCurrent > tReassemblyStart + tReassemblyPeriod) {
-            // Stop timer and Handle expire actions
-            tReassemblyStart = 0;
+        if (reassemblyTimer.cycle(currentTime)) {
             actionReassemblyTimerExpired();
         }
     }
@@ -512,7 +691,7 @@ public class AmEntity extends RlcEntity {
         // update RX_Highest_Status to the SN of the first RLC SDU with
         //  SN >= RX_Next_Status_Trigger for which not all bytes have been received;
         int sn = rxNextStatusTrigger;
-        while (isDelivered(sn))
+        while (rxBuffer.isDelivered(sn))
             sn = (sn + 1) % snModulus;
         rxHighestStatus = sn;
 
@@ -525,13 +704,13 @@ public class AmEntity extends RlcEntity {
         // or if RX_Next_Highest = RX_Highest_Status + 1 and there is at least one missing byte
         //  segment of the SDU associated with SN = RX_Highest_Status before the last byte
         //  of all received segments of this SDU:
-        else if (rxNextHighest == (rxHighestStatus + 1) % snModulus && hasMissingSegment(rxHighestStatus)) {
+        else if (rxNextHighest == (rxHighestStatus + 1) % snModulus && rxBuffer.hasMissingBytes(rxHighestStatus)) {
             condition = true;
         }
 
         if (condition) {
             // start t-Reassembly;
-            tReassemblyStart = tCurrent;
+            reassemblyTimer.start(tCurrent);
             // set RX_Next_Status_Trigger to RX_Next_Highest.
             rxNextStatusTrigger = rxNextHighest;
         }

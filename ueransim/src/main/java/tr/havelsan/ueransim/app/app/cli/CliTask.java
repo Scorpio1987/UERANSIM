@@ -13,16 +13,16 @@ import tr.havelsan.ueransim.app.common.configs.GnbConfig;
 import tr.havelsan.ueransim.app.common.configs.UeConfig;
 import tr.havelsan.ueransim.app.common.info.GnbStatusInfo;
 import tr.havelsan.ueransim.app.common.info.UeStatusInfo;
-import tr.havelsan.ueransim.app.common.itms.*;
+import tr.havelsan.ueransim.app.common.nts.*;
 import tr.havelsan.ueransim.app.common.simctx.GnbSimContext;
 import tr.havelsan.ueransim.app.common.simctx.UeSimContext;
 import tr.havelsan.ueransim.app.gnb.app.GnbAppTask;
 import tr.havelsan.ueransim.app.ue.app.UeAppTask;
 import tr.havelsan.ueransim.app.utils.MtsInitializer;
-import tr.havelsan.ueransim.itms.NtsId;
-import tr.havelsan.ueransim.itms.nts.NtsTask;
 import tr.havelsan.ueransim.mts.ImplicitTypedObject;
 import tr.havelsan.ueransim.mts.MtsContext;
+import tr.havelsan.ueransim.nts.NtsId;
+import tr.havelsan.ueransim.nts.nts.NtsTask;
 import tr.havelsan.ueransim.utils.Json;
 import tr.havelsan.ueransim.utils.Utils;
 import tr.havelsan.ueransim.utils.octets.OctetString;
@@ -112,8 +112,8 @@ public class CliTask extends NtsTask {
                 refConfig.plmn,
                 refConfig.amfConfigs,
                 refConfig.ignoreStreamIds,
-                refConfig.host,
-                refConfig.gtpPort,
+                refConfig.ngapIp,
+                refConfig.gtpIp,
                 refConfig.nssais
         );
 
@@ -141,7 +141,6 @@ public class CliTask extends NtsTask {
                 refConfig.imei,
                 cmd.imsi != null ? new Supi("imsi", cmd.imsi) : refConfig.supi,
                 refConfig.plmn,
-                refConfig.smsOverNasSupported,
                 refConfig.requestedNssai,
                 refConfig.dnn
         );

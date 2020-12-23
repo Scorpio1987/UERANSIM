@@ -9,7 +9,7 @@ import tr.havelsan.ueransim.app.common.PduSessionResource;
 import tr.havelsan.ueransim.app.common.contexts.NgapGnbContext;
 import tr.havelsan.ueransim.app.common.contexts.NgapUeContext;
 import tr.havelsan.ueransim.app.common.exceptions.NgapErrorException;
-import tr.havelsan.ueransim.app.common.itms.IwPduSessionResourceCreate;
+import tr.havelsan.ueransim.app.common.nts.IwPduSessionResourceCreate;
 import tr.havelsan.ueransim.ngap0.NgapDataUnitType;
 import tr.havelsan.ueransim.ngap0.NgapEncoding;
 import tr.havelsan.ueransim.ngap0.core.NGAP_OctetString;
@@ -131,7 +131,7 @@ public class NgapPduSessionManagement {
         resource.downLayer = new NGAP_UPTransportLayerInformation();
         resource.downLayer.gTPTunnel = new NGAP_GTPTunnel();
 
-        resource.downLayer.gTPTunnel.transportLayerAddress = new NGAP_TransportLayerAddress(Utils.getAddress(ctx.gnbCtx.config.host));
+        resource.downLayer.gTPTunnel.transportLayerAddress = new NGAP_TransportLayerAddress(Utils.getAddress(ctx.gnbCtx.config.gtpIp));
 
         ctx.downTeidCounter++;
         var downTeid = new Octet4(ctx.downTeidCounter & 0xFFFFFFFFL).toOctetString();

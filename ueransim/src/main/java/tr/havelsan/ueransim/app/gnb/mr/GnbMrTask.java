@@ -6,13 +6,13 @@
 package tr.havelsan.ueransim.app.gnb.mr;
 
 import tr.havelsan.ueransim.app.common.contexts.GnbMrContext;
-import tr.havelsan.ueransim.app.common.itms.IwDownlinkData;
-import tr.havelsan.ueransim.app.common.itms.IwDownlinkRrc;
-import tr.havelsan.ueransim.app.common.itms.IwUplinkData;
-import tr.havelsan.ueransim.app.common.itms.IwUplinkRrc;
+import tr.havelsan.ueransim.app.common.nts.IwDownlinkData;
+import tr.havelsan.ueransim.app.common.nts.IwDownlinkRrc;
+import tr.havelsan.ueransim.app.common.nts.IwUplinkData;
+import tr.havelsan.ueransim.app.common.nts.IwUplinkRrc;
 import tr.havelsan.ueransim.app.common.simctx.GnbSimContext;
-import tr.havelsan.ueransim.itms.NtsId;
-import tr.havelsan.ueransim.itms.nts.NtsTask;
+import tr.havelsan.ueransim.nts.NtsId;
+import tr.havelsan.ueransim.nts.nts.NtsTask;
 
 public class GnbMrTask extends NtsTask {
 
@@ -54,7 +54,6 @@ public class GnbMrTask extends NtsTask {
     }
 
     private void receiveDownlinkData(IwDownlinkData msg) {
-        ctx.gnbCtx.sim.getAirCtx().nts.findTask(NtsId.AIR_TASK_TB).push(msg);
         ctx.gnbCtx.sim.findUe(msg.ueId).nts.findTask(NtsId.UE_TASK_MR).push(msg);
     }
 }

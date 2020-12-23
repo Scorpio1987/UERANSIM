@@ -17,7 +17,7 @@ import tr.havelsan.ueransim.app.app.monitor.StepperMonitor;
 import tr.havelsan.ueransim.app.common.Supi;
 import tr.havelsan.ueransim.app.common.sw.*;
 import tr.havelsan.ueransim.app.utils.SocketWrapperSerializer;
-import tr.havelsan.ueransim.itms.nts.NtsTask;
+import tr.havelsan.ueransim.nts.nts.NtsTask;
 import tr.havelsan.ueransim.utils.Fun;
 import tr.havelsan.ueransim.utils.Severity;
 import tr.havelsan.ueransim.utils.Tag;

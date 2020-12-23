@@ -8,15 +8,15 @@ package tr.havelsan.ueransim.app.gnb.gtp;
 import tr.havelsan.ueransim.app.common.PduSessionResource;
 import tr.havelsan.ueransim.app.common.contexts.GtpContext;
 import tr.havelsan.ueransim.app.common.contexts.GtpUeContext;
-import tr.havelsan.ueransim.app.common.itms.*;
+import tr.havelsan.ueransim.app.common.nts.*;
 import tr.havelsan.ueransim.app.common.simctx.GnbSimContext;
 import tr.havelsan.ueransim.gtp.GtpDecoder;
 import tr.havelsan.ueransim.gtp.GtpEncoder;
 import tr.havelsan.ueransim.gtp.GtpMessage;
 import tr.havelsan.ueransim.gtp.ext.PduSessionContainerExtHeader;
 import tr.havelsan.ueransim.gtp.pdusup.UlPduSessionInformation;
-import tr.havelsan.ueransim.itms.NtsId;
-import tr.havelsan.ueransim.itms.nts.NtsTask;
+import tr.havelsan.ueransim.nts.NtsId;
+import tr.havelsan.ueransim.nts.nts.NtsTask;
 import tr.havelsan.ueransim.utils.Tag;
 import tr.havelsan.ueransim.utils.bits.Bit6;
 import tr.havelsan.ueransim.utils.console.Log;
@@ -59,10 +59,10 @@ public class GtpTask extends NtsTask {
     protected void main() {
         ctx.mrTask = ctx.gnbCtx.nts.findTask(NtsId.GNB_TASK_MR);
         try {
-            ctx.socket = new DatagramSocket(ctx.gnbCtx.config.gtpPort, InetAddress.getByName(ctx.gnbCtx.config.host));
+            ctx.socket = new DatagramSocket(2152, InetAddress.getByName(ctx.gnbCtx.config.gtpIp));
 
         } catch (Exception e) {
-            Log.error(Tag.CONN, "Failed to bind UDP/GTP socket %s:%s (%s)", ctx.gnbCtx.config.host, ctx.gnbCtx.config.gtpPort, e.toString());
+            Log.error(Tag.CONN, "Failed to bind UDP/GTP socket %s:%s (%s)", ctx.gnbCtx.config.gtpIp, 2152, e.toString());
             return;
         }
         var receiverThread = new Thread(() -> udpReceiverThread(ctx.socket, this));
@@ -176,7 +176,7 @@ public class GtpTask extends NtsTask {
         }
 
         if (rateLimiter.allowDownlinkPacket(pduSession, gtp.payload.length)) {
-            ctx.mrTask.push(new IwDownlinkData(pduSession.ueId, gtp.payload));
+            ctx.mrTask.push(new IwDownlinkData(pduSession.ueId, pduSession.pduSessionId, gtp.payload));
         }
     }
 
