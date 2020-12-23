@@ -57,7 +57,7 @@ public class CliOpt {
                 names = {"-i", "--imsi"},
                 description = "Use specified SUPI/IMSI number instead of default one."
         )
-        private Supi imsi;
+        private String imsi;
 
         @CommandLine.Option(
                 names = {"-k", "--key"},
@@ -74,7 +74,7 @@ public class CliOpt {
         public void run() {
             var msg = new CmdUeCreate();
             msg.configFile = configFile != null ? configFile.getAbsolutePath() : null;
-            msg.imsi = imsi != null ? imsi.value : null;
+            msg.imsi = imsi;
             msg.key = key;
             msg.op = op;
 
