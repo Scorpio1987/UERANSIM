@@ -8,6 +8,7 @@ package tr.havelsan.ueransim.app.app.entry;
 import picocli.CommandLine;
 import tr.havelsan.ueransim.app.app.cli.CliOpt;
 import tr.havelsan.ueransim.app.app.cli.CliUtils;
+import tr.havelsan.ueransim.app.common.Supi;
 import tr.havelsan.ueransim.app.common.cli.*;
 import tr.havelsan.ueransim.app.common.itms.IwPerformCycle;
 import tr.havelsan.ueransim.itms.nts.NtsTask;
@@ -21,6 +22,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.Socket;
+import java.util.regex.Pattern;
 
 public class ClientApp {
 
@@ -83,6 +85,12 @@ public class ClientApp {
         CliOpt.msg = null;
         new CommandLine(new CliOpt.RootCommand())
                 .registerConverter(OctetString.class, OctetString::new)
+                .registerConverter(Supi.class, value -> {
+                    var matcher = Pattern.compile("^(imsi-)?(\\d{15,16})$").matcher(value);
+                    if (matcher.find())
+                        return new Supi("imsi", matcher.group(2));
+                    throw new IllegalArgumentException("Invalid IMSI format.");
+                })
                 .execute(args);
 
         if (CliOpt.msg != null) {

@@ -7,6 +7,7 @@ package tr.havelsan.ueransim.app.app.cli;
 
 import picocli.CommandLine;
 import tr.havelsan.ueransim.app.app.entry.ClientApp;
+import tr.havelsan.ueransim.app.common.Supi;
 import tr.havelsan.ueransim.app.common.cli.*;
 
 import java.io.File;
@@ -56,7 +57,7 @@ public class CliOpt {
                 names = {"-i", "--imsi"},
                 description = "Use specified SUPI/IMSI number instead of default one."
         )
-        private String imsi;
+        private Supi imsi;
 
         @CommandLine.Option(
                 names = {"-k", "--key"},
@@ -71,12 +72,9 @@ public class CliOpt {
         private String op;
 
         public void run() {
-            if (imsi != null && imsi.startsWith("imsi-"))
-                imsi = imsi.substring("imsi-".length());
-
             var msg = new CmdUeCreate();
             msg.configFile = configFile != null ? configFile.getAbsolutePath() : null;
-            msg.imsi = imsi;
+            msg.imsi = imsi != null ? imsi.value : null;
             msg.key = key;
             msg.op = op;
 
@@ -112,10 +110,10 @@ public class CliOpt {
         @CommandLine.Parameters(
                 description = "IMSI number of the UE whose status will be displayed."
         )
-        private String imsi;
+        private Supi imsi;
 
         public void run() {
-            msg = new CmdUeStatus(imsi);
+            msg = new CmdUeStatus(imsi != null ? imsi.value : null);
         }
     }
 
@@ -199,10 +197,10 @@ public class CliOpt {
         @CommandLine.Parameters(
                 description = "IMSI of the UE that will trigger PDU session establishment."
         )
-        private String ueImsi;
+        private Supi ueImsi;
 
         public void run() {
-            msg = new CmdSessionCreate(ueImsi);
+            msg = new CmdSessionCreate(ueImsi != null ? ueImsi.value : null);
         }
     }
 
@@ -220,7 +218,7 @@ public class CliOpt {
                 description = "IMSI number of the UE that will trigger ping request.",
                 index = "0"
         )
-        private String ueImsi;
+        private Supi ueImsi;
 
         @CommandLine.Parameters(
                 description = "Destination address of the ping request. (NOTE: address resolution is performed locally.)",
@@ -246,7 +244,7 @@ public class CliOpt {
 
         public void run() {
             var msg = new CmdUePing();
-            msg.ueImsi = ueImsi;
+            msg.ueImsi = ueImsi.value;
             msg.address = address;
             msg.count = count;
             msg.timeoutSec = timeoutSec;
@@ -269,7 +267,7 @@ public class CliOpt {
                 description = "IMSI number of the UE that will trigger de-registration.",
                 index = "0"
         )
-        private String ueImsi;
+        private Supi ueImsi;
 
         @CommandLine.Option(
                 names = {"-s"},
@@ -279,7 +277,7 @@ public class CliOpt {
 
         public void run() {
             var msg = new CmdUeDeRegistration();
-            msg.ueImsi = ueImsi;
+            msg.ueImsi = ueImsi != null ? ueImsi.value : null;
             msg.isSwitchOff = isSwitchOff;
 
             CliOpt.msg = msg;

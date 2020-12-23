@@ -248,7 +248,7 @@ public class WebApp {
             if (cls == File.class)
                 return ParameterType.FILE;
             if (cls == Supi.class)
-                throw new NotImplementedException(""); // TODO
+                return ParameterType.IMSI;
             throw new IllegalArgumentException();
         }
     }
