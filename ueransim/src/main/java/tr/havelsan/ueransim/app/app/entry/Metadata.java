@@ -2,6 +2,7 @@ package tr.havelsan.ueransim.app.app.entry;
 
 import picocli.CommandLine;
 import tr.havelsan.ueransim.app.app.cli.CliOpt;
+import tr.havelsan.ueransim.app.common.GnbId;
 import tr.havelsan.ueransim.app.common.Supi;
 import tr.havelsan.ueransim.app.common.sw.SwCommandMetadata;
 import tr.havelsan.ueransim.app.common.sw.SwConfigMetadata;
@@ -87,6 +88,8 @@ public class Metadata {
                 return ParameterType.FILE;
             if (cls == Supi.class)
                 return ParameterType.IMSI;
+            if (cls == GnbId.class)
+                return ParameterType.GNB_ID;
             throw new IllegalArgumentException();
         }
     }
@@ -125,6 +128,7 @@ public class Metadata {
         FLOAT,
         TEXT,
         IMSI,
+        GNB_ID,
         OCTET_STRING,
         FILE,
     }

@@ -7,6 +7,7 @@ package tr.havelsan.ueransim.app.app.cli;
 
 import picocli.CommandLine;
 import tr.havelsan.ueransim.app.app.entry.ClientApp;
+import tr.havelsan.ueransim.app.common.GnbId;
 import tr.havelsan.ueransim.app.common.Supi;
 import tr.havelsan.ueransim.app.common.cli.*;
 
@@ -177,10 +178,10 @@ public class CliOpt {
         @CommandLine.Parameters(
                 description = "ID of the gNB whose status will be displayed."
         )
-        private int id;
+        private GnbId id;
 
         public void run() {
-            msg = new CmdGnbStatus(id);
+            msg = new CmdGnbStatus(id != null ? id.value : 0);
         }
     }
 

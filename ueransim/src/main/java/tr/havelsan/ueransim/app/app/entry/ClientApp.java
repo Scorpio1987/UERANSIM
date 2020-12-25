@@ -8,6 +8,7 @@ package tr.havelsan.ueransim.app.app.entry;
 import picocli.CommandLine;
 import tr.havelsan.ueransim.app.app.cli.CliOpt;
 import tr.havelsan.ueransim.app.app.cli.CliUtils;
+import tr.havelsan.ueransim.app.common.GnbId;
 import tr.havelsan.ueransim.app.common.Supi;
 import tr.havelsan.ueransim.app.common.cli.*;
 import tr.havelsan.ueransim.app.common.nts.IwPerformCycle;
@@ -90,6 +91,13 @@ public class ClientApp {
                     if (matcher.find())
                         return new Supi("imsi", matcher.group(2));
                     throw new IllegalArgumentException("Invalid IMSI format.");
+                })
+                .registerConverter(GnbId.class, value -> {
+                    try {
+                        return new GnbId(Integer.parseInt(value));
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("Invalid GNB ID value.");
+                    }
                 })
                 .execute(args);
 
