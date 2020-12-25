@@ -15,4 +15,13 @@ public class SwCommand extends SocketWrapper {
         this.commandName = commandName;
         this.parameters = parameters;
     }
+
+    // TODO: remove this method
+    @Override
+    public String toString() {
+        return "SwCommand{" +
+                "commandName='" + commandName + '\'' +
+                ", parameters=" + parameters +
+                '}';
+    }
 }

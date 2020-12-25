@@ -5,6 +5,7 @@
 
 package tr.havelsan.ueransim.app.app.cli;
 
+import picocli.CommandLine;
 import tr.havelsan.ueransim.app.common.cli.CmdMessage;
 import tr.havelsan.ueransim.app.common.sw.SwCommand;
 import tr.havelsan.ueransim.utils.Constants;
@@ -17,6 +18,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.StringTokenizer;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 
 public class CliUtils {
@@ -203,8 +205,49 @@ public class CliUtils {
         return result.toArray(new String[0]);
     }
 
-    public static String[] parseCommand(SwCommand command) {
-        // TODO
-        return null;
+    public static String[] constructCommandLineArgs(SwCommand swCommand) {
+        var commandName = swCommand.commandName;
+        var parameters = swCommand.parameters;
+        var command = new CommandLine(new CliOpt.RootCommand()).getSubcommands().get(commandName);
+
+        if (command == null)
+            return new String[]{};
+
+        var spec = command.getCommandSpec();
+        var args = new ArrayList<String>();
+        args.add(commandName);
+
+        for (var option: spec.options()) {
+            if (option.usageHelp() || option.versionHelp())
+                continue;
+
+            var arg = parameters.get(trimAngularBrackets(option.paramLabel()));
+            if (arg == null || arg.equals(""))
+                continue;
+
+            args.add(option.shortestName());
+            args.add(arg);
+        }
+
+        var sortedMap = new TreeMap<CommandLine.Range, String>();
+        for (var parameter: spec.positionalParameters()) {
+            var arg = parameters.get(trimAngularBrackets(parameter.paramLabel()));
+            if (arg == null || arg.equals(""))
+                continue;
+
+            sortedMap.put(parameter.index(), arg);
+        }
+
+        args.addAll(sortedMap.values());
+
+        return args.toArray(new String[0]);
+    }
+
+    private static String trimAngularBrackets(String name) {
+        if (name.startsWith("<"))
+            name = name.substring(1);
+        if (name.endsWith(">"))
+            name = name.substring(0, name.length() - 1);
+        return name;
     }
 }
