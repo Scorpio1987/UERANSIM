@@ -122,9 +122,9 @@ public class WebInterface {
                     push(Metadata.LOG_METADATA);
                 } else if (msg instanceof SocketWrapper) {
                     if (ws != null) {
-                        ws.send(SocketWrapperSerializer.toJson(msg));
+                        ws.send(SocketWrapperSerializer.toJson(msg)); // TODO: handle connection closed
                     } else {
-                        push(msg);
+                        pushFront(msg);
                         Utils.sleep(10);
                     }
                 }
