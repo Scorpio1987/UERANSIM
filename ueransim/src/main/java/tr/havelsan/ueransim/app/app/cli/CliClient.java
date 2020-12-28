@@ -90,11 +90,10 @@ public class CliClient {
                     throw new IllegalArgumentException("Invalid IMSI format.");
                 })
                 .registerConverter(GnbId.class, value -> {
-                    try {
-                        return new GnbId(Integer.parseInt(value));
-                    } catch (NumberFormatException e) {
-                        throw new IllegalArgumentException("Invalid GNB ID value.");
-                    }
+                    var matcher = Pattern.compile("^(gnb-)?(\\d+)$").matcher(value);
+                    if (matcher.find())
+                        return new GnbId(Integer.parseInt(matcher.group(2)));
+                    throw new IllegalArgumentException("Invalid GNB ID format.");
                 })
                 .execute(args);
 
