@@ -225,8 +225,14 @@ public class CliUtils {
             if (arg == null || arg.equals(""))
                 continue;
 
-            args.add(option.shortestName());
-            args.add(arg);
+            if (option.type() == boolean.class || option.type() == Boolean.class ) {
+                if (Boolean.parseBoolean(arg)) {
+                    args.add(option.shortestName());
+                }
+            } else {
+                args.add(option.shortestName());
+                args.add(arg);
+            }
         }
 
         var sortedMap = new TreeMap<CommandLine.Range, String>();
