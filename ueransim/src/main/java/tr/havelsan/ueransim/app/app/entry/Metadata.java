@@ -39,9 +39,10 @@ public class Metadata {
                 if (!subCommand.getSubcommands().isEmpty())
                     continue;
 
+                var commandCls = subCommand.getCommand().getClass();
                 var name = subCommand.getCommandName();
                 var spec = subCommand.getCommandSpec();
-                var command = (CommandLine.Command) subCommand.getCommand().getClass().getAnnotation(CommandLine.Command.class);
+                var command = (CommandLine.Command) commandCls.getAnnotation(CommandLine.Command.class);
                 var description = String.join(" ", command.description());
                 var parameters = new ArrayList<ParameterInfo>();
 
@@ -55,8 +56,10 @@ public class Metadata {
                     parameters.add(getParameterInfo(option));
                 }
 
+                boolean isQuery = commandCls.getAnnotation(CliOpt.CommandInfo.class).isQuery();
+
                 // TODO: help
-                commands.add(new CommandInfo(name, description, parameters));
+                commands.add(new CommandInfo(name, description, isQuery, parameters));
             }
         }
 
@@ -97,11 +100,13 @@ public class Metadata {
     private static class CommandInfo {
         public final String name;
         public final String description;
+        public final boolean isQuery;
         public final List<ParameterInfo> parameters;
 
-        public CommandInfo(String name, String description, List<ParameterInfo> parameters) {
+        public CommandInfo(String name, String description, boolean isQuery, List<ParameterInfo> parameters) {
             this.name = name;
             this.description = description;
+            this.isQuery = isQuery;
             this.parameters = parameters;
         }
     }

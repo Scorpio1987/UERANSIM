@@ -11,6 +11,8 @@ import tr.havelsan.ueransim.app.common.Supi;
 import tr.havelsan.ueransim.app.common.cli.*;
 
 import java.io.File;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 
 public class CliOpt {
 
@@ -45,6 +47,7 @@ public class CliOpt {
             mixinStandardHelpOptions = true,
             versionProvider = CliClient.VersionProvider.class
     )
+    @CommandInfo(isQuery = false)
     public static class UeCreateCommand implements Runnable {
         @CommandLine.Option(
                 names = {"-c", "--config"},
@@ -91,6 +94,7 @@ public class CliOpt {
             mixinStandardHelpOptions = true,
             versionProvider = CliClient.VersionProvider.class
     )
+    @CommandInfo(isQuery = true)
     public static class UeListCommand implements Runnable {
         public void run() {
             msg = new CmdUeList();
@@ -106,6 +110,7 @@ public class CliOpt {
             mixinStandardHelpOptions = true,
             versionProvider = CliClient.VersionProvider.class
     )
+    @CommandInfo(isQuery = true)
     public static class UeStatusCommand implements Runnable {
         @CommandLine.Parameters(
                 description = "IMSI number of the UE whose status will be displayed."
@@ -126,6 +131,7 @@ public class CliOpt {
             mixinStandardHelpOptions = true,
             versionProvider = CliClient.VersionProvider.class
     )
+    @CommandInfo(isQuery = false)
     public static class GnbCreateCommand implements Runnable {
         @CommandLine.Option(
                 names = {"-c", "--config"},
@@ -158,6 +164,7 @@ public class CliOpt {
             mixinStandardHelpOptions = true,
             versionProvider = CliClient.VersionProvider.class
     )
+    @CommandInfo(isQuery = true)
     public static class GnbListCommand implements Runnable {
         public void run() {
             msg = new CmdGnbList();
@@ -173,6 +180,7 @@ public class CliOpt {
             mixinStandardHelpOptions = true,
             versionProvider = CliClient.VersionProvider.class
     )
+    @CommandInfo(isQuery = true)
     public static class GnbStatusCommand implements Runnable {
         @CommandLine.Parameters(
                 description = "ID of the gNB whose status will be displayed."
@@ -193,6 +201,7 @@ public class CliOpt {
             mixinStandardHelpOptions = true,
             versionProvider = CliClient.VersionProvider.class
     )
+    @CommandInfo(isQuery = false)
     public static class SessionCreateCommand implements Runnable {
         @CommandLine.Parameters(
                 description = "IMSI of the UE that will trigger PDU session establishment."
@@ -213,6 +222,7 @@ public class CliOpt {
             mixinStandardHelpOptions = true,
             versionProvider = CliClient.VersionProvider.class
     )
+    @CommandInfo(isQuery = false)
     public static class UePingCommand implements Runnable {
         @CommandLine.Parameters(
                 description = "IMSI number of the UE that will trigger ping request.",
@@ -262,6 +272,7 @@ public class CliOpt {
             mixinStandardHelpOptions = true,
             versionProvider = CliClient.VersionProvider.class
     )
+    @CommandInfo(isQuery = false)
     public static class UeDeRegistrationCommand implements Runnable {
         @CommandLine.Parameters(
                 description = "IMSI number of the UE that will trigger de-registration.",
@@ -285,4 +296,9 @@ public class CliOpt {
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface CommandInfo {
+        boolean isQuery();
+    }
 }
