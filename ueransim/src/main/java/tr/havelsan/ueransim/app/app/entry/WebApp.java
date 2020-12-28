@@ -77,12 +77,12 @@ public class WebApp {
         });
 
         Fun buildApp = () -> {
-            var stepperMonitor = new TimelineMonitor(senderTask::push);
+            var timelineMonitor = new TimelineMonitor(senderTask::push);
             var loadTestNotifierMonitor = new LoadTestNotifierMonitor(senderTask);
             var appConfig = new AppConfig();
 
             ueransim = new AppBuilder()
-                    .addMonitor(stepperMonitor)
+                    .addMonitor(timelineMonitor)
                     .addMonitor(loadTestNotifierMonitor)
                     .build();
         };
