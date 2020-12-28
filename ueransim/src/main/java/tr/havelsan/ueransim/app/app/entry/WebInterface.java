@@ -71,6 +71,10 @@ public class WebInterface {
         server.start();
     }
 
+    public void onMessage(Object message) {
+        senderTask.push(message);
+    }
+
     private static class OnConnected {
         public final WebSocket ws;
 
