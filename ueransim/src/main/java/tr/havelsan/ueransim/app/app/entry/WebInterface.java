@@ -7,13 +7,17 @@ import org.java_websocket.framing.CloseFrame;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.handshake.ServerHandshakeBuilder;
 import org.java_websocket.server.WebSocketServer;
+import tr.havelsan.ueransim.app.app.cli.CliClient;
+import tr.havelsan.ueransim.app.app.cli.CliUtils;
 import tr.havelsan.ueransim.app.common.sw.SocketWrapper;
 import tr.havelsan.ueransim.app.common.sw.SwCommand;
+import tr.havelsan.ueransim.app.common.sw.SwCommandResponse;
 import tr.havelsan.ueransim.app.utils.SocketWrapperSerializer;
 import tr.havelsan.ueransim.nts.nts.NtsTask;
 import tr.havelsan.ueransim.utils.Utils;
 
 import java.net.InetSocketAddress;
+import java.util.concurrent.atomic.AtomicInteger;
 
 // TODO: What if multiple WS clients connect us?
 public class WebInterface {
@@ -77,13 +81,20 @@ public class WebInterface {
 
     private static class ReceiverTask extends NtsTask {
         public SenderTask senderTask;
+        private static final AtomicInteger ID_PROVIDER = new AtomicInteger();
 
         @Override
         protected void main() {
             while (true) {
                 var msg = take();
                 if (msg instanceof SwCommand) {
-                    System.out.println(msg);
+                    int transactionId = ID_PROVIDER.getAndIncrement();
+                    var args = CliUtils.constructCommandLineArgs((SwCommand) msg);
+                    new CliClient(code -> {
+                        senderTask.push(new SwCommandResponse(transactionId, true, null, null));
+                    }, colorMessage -> {
+                        senderTask.push(new SwCommandResponse(transactionId, false, colorMessage.first, colorMessage.second));
+                    }).start(args);
                 }
             }
         }
