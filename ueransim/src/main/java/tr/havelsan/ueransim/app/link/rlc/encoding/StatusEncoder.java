@@ -5,9 +5,9 @@
 
 package tr.havelsan.ueransim.app.link.rlc.encoding;
 
-import tr.havelsan.ueransim.app.link.rlc.RlcConstants;
 import tr.havelsan.ueransim.app.link.rlc.pdu.StatusPdu;
 import tr.havelsan.ueransim.app.link.rlc.utils.NackBlock;
+import tr.havelsan.ueransim.app.link.rlc.utils.RlcConstants;
 import tr.havelsan.ueransim.utils.BitInputStream;
 import tr.havelsan.ueransim.utils.BitOutputStream;
 import tr.havelsan.ueransim.utils.exceptions.IncorrectImplementationException;
@@ -117,7 +117,7 @@ public class StatusEncoder {
             }
 
             if (e3) {
-                stream.writeBits(block.nackRange, 16);
+                stream.writeBits(block.nackRange, 8);
             }
         }
     }

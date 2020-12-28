@@ -8,13 +8,15 @@ package tr.havelsan.ueransim.app.link.rlc.entity;
 import tr.havelsan.ueransim.app.link.rlc.encoding.UmdEncoder;
 import tr.havelsan.ueransim.app.link.rlc.interfaces.IRlcConsumer;
 import tr.havelsan.ueransim.app.link.rlc.pdu.UmdPdu;
-import tr.havelsan.ueransim.app.link.rlc.utils.*;
+import tr.havelsan.ueransim.app.link.rlc.utils.ESegmentInfo;
+import tr.havelsan.ueransim.app.link.rlc.utils.RlcFunc;
+import tr.havelsan.ueransim.app.link.rlc.utils.RlcSduSegment;
+import tr.havelsan.ueransim.app.link.rlc.utils.RlcTimer;
+import tr.havelsan.ueransim.utils.LinkedList;
 import tr.havelsan.ueransim.utils.OctetInputStream;
 import tr.havelsan.ueransim.utils.OctetOutputStream;
 import tr.havelsan.ueransim.utils.exceptions.IncorrectImplementationException;
 import tr.havelsan.ueransim.utils.octets.OctetString;
-
-import java.util.LinkedList;
 
 public class UmEntity extends RlcEntity {
 
@@ -23,6 +25,7 @@ public class UmEntity extends RlcEntity {
     private int snModulus;
     private int windowSize;
     private int txMaxSize;
+    private int rxMaxSize;
 
     // TX buffer
     private int txCurrentSize;
@@ -32,7 +35,8 @@ public class UmEntity extends RlcEntity {
     private int txNext;            // SN to be assigned for the next newly generated UMD PDU with segment
 
     // RX buffer
-    private RlcRxBuffer<UmdPdu> rxBuffer;
+    private int rxCurrentSize;
+    private LinkedList<UmdPdu> rxBuffer;
 
     // RX state variables
     private int rxNextReassembly;  // Earliest SN that is still considered for reassembly
@@ -57,17 +61,14 @@ public class UmEntity extends RlcEntity {
         }
 
         var um = new UmEntity(consumer);
-
         um.snLength = snLength;
         um.snModulus = 1 << snLength;
         um.windowSize = um.snModulus / 2;
-
         um.reassemblyTimer = new RlcTimer(tReassemblyPeriod);
-
         um.txMaxSize = txMaxSize;
         um.txBuffer = new LinkedList<>();
-        um.rxBuffer = new RlcRxBuffer<>(um::snCompareRx, rxMaxSize);
-
+        um.rxMaxSize = rxMaxSize;
+        um.rxBuffer = new LinkedList<>();
         um.clearEntity();
         return um;
     }
@@ -76,6 +77,7 @@ public class UmEntity extends RlcEntity {
         // discard all RLC SDUs, RLC SDU segments, and RLC PDUs, if any
         txCurrentSize = 0;
         txBuffer.clear();
+        rxCurrentSize = 0;
         rxBuffer.clear();
 
         // reset all state variables to their initial values.
@@ -104,54 +106,20 @@ public class UmEntity extends RlcEntity {
     }
 
     //======================================================================================================
-    //                                          INTERNAL METHODS
-    //======================================================================================================
-
-    private int umdPduHeaderSize(ESegmentInfo si) {
-        switch (si) {
-            case FULL:
-                return 1;
-            case FIRST:
-                return snLength == 6 ? 1 : 2;
-            default:
-                return snLength == 6 ? 3 : 4;
-        }
-    }
-
-    private RlcSduSegment performSegmentation(RlcSduSegment sdu, int maxSize) {
-        var newSi = sdu.si.asNotLast();
-        var nextSi = sdu.si.asNotFirst();
-
-        int headerSizeAfterSeg = umdPduHeaderSize(newSi);
-        if (headerSizeAfterSeg + 1 > maxSize)
-            return null;
-
-        int overflowed = headerSizeAfterSeg + sdu.size - maxSize;
-
-        sdu.si = newSi;
-        sdu.size -= overflowed;
-
-        var next = new RlcSduSegment(sdu.sdu);
-        next.si = nextSi;
-        next.size = overflowed;
-        next.so = sdu.so + sdu.size;
-
-        return next;
-    }
-
-    //======================================================================================================
     //                                             ACTIONS
     //======================================================================================================
 
-    private void actionReception(UmdPdu pdu) {
+    private void actionsOnReception(UmdPdu pdu) {
         int x = pdu.sn;
 
         // If all byte segments with SN = x are received
-        if (rxBuffer.isAllSegmentsReceived(x)) {
+        if (RlcFunc.isAllSegmentsReceived(rxBuffer, x)) {
             // Reassemble the RLC SDU from all byte segments with SN = x, remove RLC headers and deliver
             //  the reassembled RLC SDU to upper layer.
-            var reassembled = rxBuffer.reassemble(pdu.sn);
-            if (reassembled != null) {
+            var reassembleStream = new OctetOutputStream();
+            rxCurrentSize -= RlcFunc.reassemble(rxBuffer, pdu.sn, reassembleStream);
+            var reassembled = reassembleStream.toOctetString();
+            if (reassembled.length > 0) {
                 consumer.deliverSdu(this, reassembled);
             }
 
@@ -159,7 +127,7 @@ public class UmEntity extends RlcEntity {
             //  SN > current RX_Next_Reassembly that has not been reassembled and delivered to upper layer.
             if (x == rxNextReassembly) {
                 int n = rxNextReassembly;
-                while (rxBuffer.isDelivered(n)) {
+                while (RlcFunc.isDelivered(rxBuffer, n)) {
                     n = (n + 1) % snModulus;
                 }
                 rxNextReassembly = n;
@@ -169,14 +137,14 @@ public class UmEntity extends RlcEntity {
             rxNextHighest = (x + 1) % snModulus;
 
             // Discard any UMD PDUs with SN that falls outside of the reassembly window
-            rxBuffer.discardSegmentIf(sn -> snCompareRx(sn, rxNextHighest) >= 0);
+            rxCurrentSize -= RlcFunc.discardRxPduIf(rxBuffer, sn -> snCompareRx(sn, rxNextHighest) >= 0);
 
             // If RX_Next_Reassembly falls outside of the reassembly window
             if (snCompareRx(rxNextReassembly, rxNextHighest) >= 0) {
                 // Set RX_Next_Reassembly to the SN of the first SN >= (RX_Next_Highest – UM_Window_Size)
                 //  that has not been reassembled and delivered to upper layer.
                 int n = (rxNextHighest - windowSize + snModulus) % snModulus;
-                while (rxBuffer.isDelivered(n)) {
+                while (RlcFunc.isDelivered(rxBuffer, n)) {
                     n = (n + 1) % snModulus;
                 }
                 rxNextReassembly = n;
@@ -199,7 +167,7 @@ public class UmEntity extends RlcEntity {
             // if RX_Next_Highest = RX_Next_Reassembly + 1 and there is no missing byte segment
             //  of the RLC SDU associated with SN = RX_Next_Reassembly before the last byte of
             //  all received segments of this RLC SDU:
-            else if (rxNextHighest == (rxNextReassembly + 1) % snModulus && !rxBuffer.hasMissingBytes(rxNextReassembly)) {
+            else if (rxNextHighest == (rxNextReassembly + 1) % snModulus && !RlcFunc.hasMissingSegment(rxBuffer, rxNextReassembly)) {
                 condition = true;
             }
 
@@ -220,7 +188,7 @@ public class UmEntity extends RlcEntity {
             // if RX_Next_Highest = RX_Next_Reassembly + 1 and there is at least one missing byte segment
             //  of the RLC SDU associated with SN = RX_Next_Reassembly before the last byte of all received
             //  segments of this RLC SDU:
-            else if (rxNextHighest == (rxNextReassembly + 1) % snModulus && rxBuffer.hasMissingBytes(rxNextReassembly)) {
+            else if (rxNextHighest == (rxNextReassembly + 1) % snModulus && RlcFunc.hasMissingSegment(rxBuffer, rxNextReassembly)) {
                 condition = true;
             }
 
@@ -233,21 +201,21 @@ public class UmEntity extends RlcEntity {
         }
     }
 
-    private void actionReassemblyTimerExpired() {
+    private void actionsOnReassemblyTimerExpired() {
         // Update RX_Next_Reassembly to the SN of the first SN >= RX_Timer_Trigger that has not been reassembled
         rxNextReassembly = rxTimerTrigger;
-        while (rxBuffer.isDelivered(rxNextReassembly))
+        while (RlcFunc.isDelivered(rxBuffer, rxNextReassembly))
             rxNextReassembly = (rxNextReassembly + 1) % snModulus;
 
         // Discard all segments with SN < updated RX_Next_Reassembly
-        rxBuffer.discardSegmentIf(sn -> snCompareRx(sn, rxNextReassembly) < 0);
+        rxCurrentSize -= RlcFunc.discardRxPduIf(rxBuffer, sn -> snCompareRx(sn, rxNextReassembly) < 0);
 
         // if RX_Next_Highest > RX_Next_Reassembly + 1;
         if ((snCompareRx(rxNextHighest, (rxNextReassembly + 1) % snModulus) > 0) ||
                 // or if RX_Next_Highest = RX_Next_Reassembly + 1 and there is at
                 //  least one missing byte segment of the RLC SDU associated with SN = RX_Next_Reassembly
                 //  before the last byte of all received segments of this RLC SDU
-                (rxNextHighest == rxNextReassembly + 1 && rxBuffer.hasMissingBytes(rxNextReassembly))) {
+                (rxNextHighest == rxNextReassembly + 1 && RlcFunc.hasMissingSegment(rxBuffer, rxNextReassembly))) {
             // start t-Reassembly
             reassemblyTimer.start(tCurrent);
             // set RX_Timer_Trigger to RX_Next_Highest
@@ -286,45 +254,30 @@ public class UmEntity extends RlcEntity {
         }
 
         // If no room, then discard.
-        if (!rxBuffer.hasRoomFor(pdu))
+        if (rxCurrentSize + pdu.size() > rxMaxSize)
             return;
 
         // Place the received UMD PDU in the reception buffer
-        rxBuffer.add(pdu);
+        rxCurrentSize += RlcFunc.insertToRxBuffer(rxBuffer, pdu, this::snCompareRx);
 
         // Actions when an UMD PDU is placed in the reception buffer (5.2.2.2.3)
-        actionReception(pdu);
+        actionsOnReception(pdu);
     }
 
     @Override
     public void receiveSdu(OctetString data, int sduId) {
-        if (data.length == 0)
-            return;
-
-        if (txCurrentSize + data.length > txMaxSize)
-            return;
-
-        var sdu = new RlcSdu(sduId, data);
-        sdu.sn = -1;
-        sdu.retransmissionCount = -1;
-
-        var segment = new RlcSduSegment(sdu);
-        segment.size = data.length;
-        segment.so = 0;
-        segment.si = ESegmentInfo.FULL;
-
-        txCurrentSize += segment.size;
-        txBuffer.addLast(segment);
+        int size = RlcFunc.insertSduToTransmissionBuffer(data, sduId, txBuffer, txCurrentSize, txMaxSize);
+        txCurrentSize += size;
     }
 
     @Override
     public OctetString createPdu(int maxSize) {
-        var segment = txBuffer.peekFirst();
+        var segment = txBuffer.getFirstElement();
         if (segment == null) {
             return null;
         }
 
-        int headerSize = umdPduHeaderSize(segment.si);
+        int headerSize = RlcFunc.umdPduHeaderSize(snLength, segment.si);
 
         // Fragmentation is irrelevant since no byte fits the size.
         if (headerSize + 1 > maxSize) {
@@ -336,7 +289,7 @@ public class UmEntity extends RlcEntity {
 
         // Perform segmentation if it is needed
         if (headerSize + segment.size > maxSize) {
-            var next = performSegmentation(segment, maxSize);
+            var next = RlcFunc.umPerformSegmentation(segment, maxSize, snLength);
             if (next == null)
                 return null;
             txBuffer.addFirst(next);
@@ -365,37 +318,27 @@ public class UmEntity extends RlcEntity {
     public void timerCycle(long currentTime) {
         tCurrent = currentTime;
 
-        if (reassemblyTimer.cycle(currentTime)) {
-            actionReassemblyTimerExpired();
-        }
+        if (reassemblyTimer.cycle(currentTime))
+            actionsOnReassemblyTimerExpired();
     }
 
     @Override
     public void discardSdu(int sduId) {
-        RlcSduSegment p = null;
-
-        for (var segment : txBuffer) {
-            if (segment.sdu.sduId == sduId) {
-                p = segment;
-                break;
-            }
-        }
+        var segment = RlcFunc.findFirstSduSegmentWithId(txBuffer, sduId);
 
         // SDU not found, do nothing.
-        if (p == null)
+        if (segment == null)
             return;
 
         // The SDU is already segmented, do nothing.
-        if (p.si != ESegmentInfo.FULL)
+        if (segment.value.si != ESegmentInfo.FULL)
             return;
 
         // Remove the segment
-        if (!txBuffer.remove(p)) {
-            throw new RuntimeException();
-        }
+        txBuffer.remove(segment);
 
         // TODO, WARNING: not really sure here because this is not included in the a.i
-        txCurrentSize -= p.size;
+        txCurrentSize -= segment.value.size;
     }
 
     @Override
