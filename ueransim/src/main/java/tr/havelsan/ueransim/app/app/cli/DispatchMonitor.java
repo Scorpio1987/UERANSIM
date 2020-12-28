@@ -12,6 +12,11 @@ import tr.havelsan.ueransim.app.common.simctx.BaseSimContext;
 public class DispatchMonitor extends MonitorTask {
 
     @Override
+    protected void onCreate(BaseSimContext ctx) {
+
+    }
+
+    @Override
     protected void onConnected(BaseSimContext ctx, EConnType connType) {
 
     }

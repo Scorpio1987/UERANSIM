@@ -208,22 +208,27 @@ public class TimelineMonitor extends MonitorTask {
     }
 
     @Override
-    public void onConnected(BaseSimContext ctx, EConnType connectionType) {
+    protected void onCreate(BaseSimContext ctx) {
 
     }
 
     @Override
-    public void onSend(BaseSimContext ctx, Object message) {
+    protected void onConnected(BaseSimContext ctx, EConnType connectionType) {
+
+    }
+
+    @Override
+    protected void onSend(BaseSimContext ctx, Object message) {
         onMessage(ctx, message);
     }
 
     @Override
-    public void onReceive(BaseSimContext ctx, Object message) {
+    protected void onReceive(BaseSimContext ctx, Object message) {
         onMessage(ctx, message);
     }
 
     @Override
-    public void onSwitched(BaseSimContext ctx, Enum<?> state) {
+    protected void onSwitched(BaseSimContext ctx, Enum<?> state) {
 
     }
 }

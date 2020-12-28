@@ -23,17 +23,22 @@ public class LoadTestMonitor extends MonitorTask {
     }
 
     @Override
-    public void onConnected(BaseSimContext ctx, EConnType connType) {
+    protected void onCreate(BaseSimContext ctx) {
 
     }
 
     @Override
-    public void onSwitched(BaseSimContext ctx, Enum<?> state) {
+    protected void onConnected(BaseSimContext ctx, EConnType connType) {
 
     }
 
     @Override
-    public void onSend(BaseSimContext ctx, Object message) {
+    protected void onSwitched(BaseSimContext ctx, Enum<?> state) {
+
+    }
+
+    @Override
+    protected void onSend(BaseSimContext ctx, Object message) {
         if (message instanceof RegistrationRequest) {
             intervalStarted(ctx, "registration");
             intervalStarted(ctx, "phase1");
@@ -48,7 +53,7 @@ public class LoadTestMonitor extends MonitorTask {
     }
 
     @Override
-    public void onReceive(BaseSimContext ctx, Object message) {
+    protected void onReceive(BaseSimContext ctx, Object message) {
         if (message instanceof RegistrationReject) {
             intervalEnded(ctx, "registration", false);
         } else if (message instanceof RegistrationAccept) {

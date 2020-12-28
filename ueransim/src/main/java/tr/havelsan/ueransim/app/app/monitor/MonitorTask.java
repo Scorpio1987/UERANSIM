@@ -27,7 +27,9 @@ public abstract class MonitorTask extends NtsTask {
             if (obj instanceof TriggeringWrapper) {
                 var w = (TriggeringWrapper) obj;
 
-                if (w instanceof TwOnConnected)
+                if (w instanceof TwOnCreate)
+                    onCreate(w.ctx);
+                else if (w instanceof TwOnConnected)
                     onConnected(w.ctx, ((TwOnConnected) w).connType);
                 else if (w instanceof TwOnSend)
                     onSend(w.ctx, ((TwOnSend) w).msg);
@@ -47,6 +49,11 @@ public abstract class MonitorTask extends NtsTask {
     protected void processNtsMessage(Object msg) {
         // do nothing by default.
     }
+
+    /**
+     * Triggered when a simulation node has been created.
+     */
+    protected abstract void onCreate(BaseSimContext ctx);
 
     /**
      * Triggered when a simulation node has established a connection.
