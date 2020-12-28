@@ -126,7 +126,6 @@ public class CliClient {
 
      protected void fatalError(String message) {
         if (exiting) {
-            System.out.println("fatal exiting");
             finalExit(0);
             return;
         }
@@ -142,7 +141,6 @@ public class CliClient {
         Utils.runUnchecked(() -> outputStream.close());
         Utils.runUnchecked(() -> socket.close());
 
-        System.out.println("exiting");
         finalExit(code);
     }
 
