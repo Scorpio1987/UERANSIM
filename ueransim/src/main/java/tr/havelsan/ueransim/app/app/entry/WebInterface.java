@@ -21,16 +21,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 // TODO: What if multiple WS clients connect us?
 public class WebInterface {
-    private ReceiverTask receiverTask;
-    private SenderTask senderTask;
+    private final ReceiverTask receiverTask;
+    private final SenderTask senderTask;
 
-    public void start() {
+    public WebInterface() {
         receiverTask = new ReceiverTask();
         senderTask = new SenderTask();
 
         receiverTask.senderTask = senderTask;
         senderTask.receiverTask = receiverTask;
+    }
 
+    public void start() {
         senderTask.start();
         receiverTask.start();
 
