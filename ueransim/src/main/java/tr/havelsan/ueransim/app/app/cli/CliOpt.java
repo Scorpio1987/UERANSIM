@@ -6,7 +6,6 @@
 package tr.havelsan.ueransim.app.app.cli;
 
 import picocli.CommandLine;
-import tr.havelsan.ueransim.app.app.entry.ClientApp;
 import tr.havelsan.ueransim.app.common.GnbId;
 import tr.havelsan.ueransim.app.common.Supi;
 import tr.havelsan.ueransim.app.common.cli.*;
@@ -32,7 +31,7 @@ public class CliOpt {
                     UeDeRegistrationCommand.class,
             },
             mixinStandardHelpOptions = true,
-            versionProvider = ClientApp.VersionProvider.class
+            versionProvider = CliClient.VersionProvider.class
     )
     public static class RootCommand {
     }
@@ -44,7 +43,7 @@ public class CliOpt {
             description = "Create and initialize a new UE",
             sortOptions = false,
             mixinStandardHelpOptions = true,
-            versionProvider = ClientApp.VersionProvider.class
+            versionProvider = CliClient.VersionProvider.class
     )
     public static class UeCreateCommand implements Runnable {
         @CommandLine.Option(
@@ -90,7 +89,7 @@ public class CliOpt {
             description = "List all the UEs associated with this UERANSIM agent",
             sortOptions = false,
             mixinStandardHelpOptions = true,
-            versionProvider = ClientApp.VersionProvider.class
+            versionProvider = CliClient.VersionProvider.class
     )
     public static class UeListCommand implements Runnable {
         public void run() {
@@ -105,7 +104,7 @@ public class CliOpt {
             description = "Dump some information about specified UE's general status",
             sortOptions = false,
             mixinStandardHelpOptions = true,
-            versionProvider = ClientApp.VersionProvider.class
+            versionProvider = CliClient.VersionProvider.class
     )
     public static class UeStatusCommand implements Runnable {
         @CommandLine.Parameters(
@@ -125,7 +124,7 @@ public class CliOpt {
             description = "Create and initialize a new GNB",
             sortOptions = false,
             mixinStandardHelpOptions = true,
-            versionProvider = ClientApp.VersionProvider.class
+            versionProvider = CliClient.VersionProvider.class
     )
     public static class GnbCreateCommand implements Runnable {
         @CommandLine.Option(
@@ -157,7 +156,7 @@ public class CliOpt {
             description = "List all the gNBs associated with this UERANSIM agent",
             sortOptions = false,
             mixinStandardHelpOptions = true,
-            versionProvider = ClientApp.VersionProvider.class
+            versionProvider = CliClient.VersionProvider.class
     )
     public static class GnbListCommand implements Runnable {
         public void run() {
@@ -172,7 +171,7 @@ public class CliOpt {
             description = "Dump some information about specified gNB's general status",
             sortOptions = false,
             mixinStandardHelpOptions = true,
-            versionProvider = ClientApp.VersionProvider.class
+            versionProvider = CliClient.VersionProvider.class
     )
     public static class GnbStatusCommand implements Runnable {
         @CommandLine.Parameters(
@@ -192,7 +191,7 @@ public class CliOpt {
             description = "Trigger a PDU session establishment for a specified UE",
             sortOptions = false,
             mixinStandardHelpOptions = true,
-            versionProvider = ClientApp.VersionProvider.class
+            versionProvider = CliClient.VersionProvider.class
     )
     public static class SessionCreateCommand implements Runnable {
         @CommandLine.Parameters(
@@ -212,7 +211,7 @@ public class CliOpt {
             description = "Trigger a ping request for the specified UE",
             sortOptions = false,
             mixinStandardHelpOptions = true,
-            versionProvider = ClientApp.VersionProvider.class
+            versionProvider = CliClient.VersionProvider.class
     )
     public static class UePingCommand implements Runnable {
         @CommandLine.Parameters(
@@ -261,7 +260,7 @@ public class CliOpt {
             description = "Trigger a de-registration for the specified UE",
             sortOptions = false,
             mixinStandardHelpOptions = true,
-            versionProvider = ClientApp.VersionProvider.class
+            versionProvider = CliClient.VersionProvider.class
     )
     public static class UeDeRegistrationCommand implements Runnable {
         @CommandLine.Parameters(
