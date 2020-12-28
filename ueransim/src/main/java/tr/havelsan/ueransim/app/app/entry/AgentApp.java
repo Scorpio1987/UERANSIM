@@ -11,9 +11,20 @@ import tr.havelsan.ueransim.app.app.UeRanSim;
 import tr.havelsan.ueransim.app.app.cli.CliTask;
 import tr.havelsan.ueransim.app.app.cli.DispatchMonitor;
 import tr.havelsan.ueransim.app.app.monitor.LoadTestMonitor;
+import tr.havelsan.ueransim.app.app.monitor.MonitorTask;
 import tr.havelsan.ueransim.app.app.monitor.TimelineMonitor;
+import tr.havelsan.ueransim.app.common.enums.EConnType;
+import tr.havelsan.ueransim.app.common.simctx.BaseSimContext;
+import tr.havelsan.ueransim.app.common.simctx.GnbSimContext;
+import tr.havelsan.ueransim.app.common.simctx.UeSimContext;
 import tr.havelsan.ueransim.app.common.sw.SwIntervalResult;
+import tr.havelsan.ueransim.app.common.sw.SwLog;
+import tr.havelsan.ueransim.nts.nts.NtsTask;
+import tr.havelsan.ueransim.utils.Tag;
+import tr.havelsan.ueransim.utils.Utils;
+import tr.havelsan.ueransim.utils.console.LogEntry;
 
+import java.util.ArrayList;
 import java.util.function.Consumer;
 
 public class AgentApp {
@@ -23,6 +34,7 @@ public class AgentApp {
 
     private CliTask cliTask;
     private DispatchMonitor dispatchMonitor;
+    private LogTask logTask;
 
     private WebInterface webInterface;
 
@@ -38,8 +50,15 @@ public class AgentApp {
 
         webInterface = new WebInterface();
 
+        logTask = new LogTask(webInterface::onMessage);
+        logTask.start();
+
         ueransim = new AppBuilder()
                 .addMonitor(dispatchMonitor)
+                .addMonitor(new NodeInitializerTask(logEntry -> {
+                    if (logEntry != null && logEntry.tag != Tag.MSG)
+                        logTask.push(logEntry);
+                }))
                 .addMonitor(new TimelineMonitor(webInterface::onMessage))
                 .addMonitor(new LoadTestNotifierMonitor(webInterface::onMessage))
                 .build();
@@ -60,6 +79,71 @@ public class AgentApp {
         @Override
         protected void onIntervalResult(String id, String display, boolean isSuccess, String nodeName, long deltaMs) {
            intervalConsumer.accept(new SwIntervalResult(id, isSuccess, nodeName, deltaMs));
+        }
+    }
+
+    private static class LogTask extends NtsTask {
+        private final Consumer<SwLog> logConsumer;
+
+        public LogTask(Consumer<SwLog> logConsumer) {
+            this.logConsumer = logConsumer;
+        }
+
+        @Override
+        protected void main() {
+            // In this task, we use buffering instead of sending the logs one by one.
+            while (true) {
+                Utils.sleep(150);
+
+                var list = new ArrayList<LogEntry>();
+
+                while (true) {
+                    var entry = (LogEntry) poll();
+                    if (entry != null)
+                        list.add(entry);
+                    else break;
+                }
+
+                if (!list.isEmpty())
+                    logConsumer.accept(new SwLog(list));
+            }
+        }
+    }
+
+    private static class NodeInitializerTask extends MonitorTask {
+        private final Consumer<LogEntry> logHandler;
+
+        public NodeInitializerTask(Consumer<LogEntry> logHandler) {
+            this.logHandler = logHandler;
+        }
+
+        @Override
+        protected void onCreate(BaseSimContext ctx) {
+            if (ctx instanceof UeSimContext) {
+                ((UeSimContext) ctx).logger.addLogHandler(logHandler);
+            } else if (ctx instanceof GnbSimContext) {
+                ((GnbSimContext) ctx).logger.addLogHandler(logHandler);
+            }
+        }
+
+        @Override
+        protected void onConnected(BaseSimContext ctx, EConnType connType) {
+
+        }
+
+        @Override
+        protected void onSend(BaseSimContext ctx, Object message) {
+
+        }
+
+        @Override
+        protected void onReceive(BaseSimContext ctx, Object message) {
+
+        }
+
+        @Override
+        protected void onSwitched(BaseSimContext ctx, Enum<?> state) {
+
         }
     }
 }
