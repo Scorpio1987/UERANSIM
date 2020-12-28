@@ -11,7 +11,7 @@ import tr.havelsan.ueransim.app.app.AppBuilder;
 import tr.havelsan.ueransim.app.app.AppConfig;
 import tr.havelsan.ueransim.app.app.UeRanSim;
 import tr.havelsan.ueransim.app.app.monitor.LoadTestMonitor;
-import tr.havelsan.ueransim.app.app.monitor.StepperMonitor;
+import tr.havelsan.ueransim.app.app.monitor.TimelineMonitor;
 import tr.havelsan.ueransim.app.common.sw.SocketWrapper;
 import tr.havelsan.ueransim.app.common.sw.SwCommand;
 import tr.havelsan.ueransim.app.common.sw.SwIntervalResult;
@@ -77,7 +77,7 @@ public class WebApp {
         });
 
         Fun buildApp = () -> {
-            var stepperMonitor = new StepperMonitor(senderTask::push);
+            var stepperMonitor = new TimelineMonitor(senderTask::push);
             var loadTestNotifierMonitor = new LoadTestNotifierMonitor(senderTask);
             var appConfig = new AppConfig();
 

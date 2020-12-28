@@ -11,7 +11,7 @@ import tr.havelsan.ueransim.app.app.UeRanSim;
 import tr.havelsan.ueransim.app.app.cli.CliTask;
 import tr.havelsan.ueransim.app.app.cli.DispatchMonitor;
 import tr.havelsan.ueransim.app.app.monitor.LoadTestMonitor;
-import tr.havelsan.ueransim.app.app.monitor.StepperMonitor;
+import tr.havelsan.ueransim.app.app.monitor.TimelineMonitor;
 import tr.havelsan.ueransim.app.common.sw.SwIntervalResult;
 
 import java.util.function.Consumer;
@@ -40,7 +40,7 @@ public class AgentApp {
 
         ueransim = new AppBuilder()
                 .addMonitor(dispatchMonitor)
-                .addMonitor(new StepperMonitor(webInterface::onMessage))
+                .addMonitor(new TimelineMonitor(webInterface::onMessage))
                 .addMonitor(new LoadTestNotifierMonitor(webInterface::onMessage))
                 .build();
 

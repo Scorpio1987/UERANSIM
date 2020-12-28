@@ -7,7 +7,7 @@ package tr.havelsan.ueransim.app.common.sw;
 
 import tr.havelsan.ueransim.utils.Severity;
 
-public class SwStep extends SocketWrapper {
+public class SwTimeline extends SocketWrapper {
 
     public final String loggerName;
     public final boolean isUplink;
@@ -15,7 +15,7 @@ public class SwStep extends SocketWrapper {
     public final String messageName;
     public final String messageBody;
 
-    public SwStep(String loggerName, boolean isUplink, Severity severity, String messageName, String messageBody) {
+    public SwTimeline(String loggerName, boolean isUplink, Severity severity, String messageName, String messageBody) {
         this.loggerName = loggerName;
         this.isUplink = isUplink;
         this.severity = severity;

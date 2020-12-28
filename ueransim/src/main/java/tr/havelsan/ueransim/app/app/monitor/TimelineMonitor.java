@@ -7,7 +7,7 @@ package tr.havelsan.ueransim.app.app.monitor;
 
 import tr.havelsan.ueransim.app.common.enums.EConnType;
 import tr.havelsan.ueransim.app.common.simctx.BaseSimContext;
-import tr.havelsan.ueransim.app.common.sw.SwStep;
+import tr.havelsan.ueransim.app.common.sw.SwTimeline;
 import tr.havelsan.ueransim.nas.core.messages.NasMessage;
 import tr.havelsan.ueransim.nas.impl.messages.*;
 import tr.havelsan.ueransim.ngap0.core.NGAP_BaseMessage;
@@ -21,12 +21,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class StepperMonitor extends MonitorTask {
+public class TimelineMonitor extends MonitorTask {
 
-    private final Consumer<SwStep> stepConsumer;
+    private final Consumer<SwTimeline> timelineConsumer;
 
-    public StepperMonitor(Consumer<SwStep> stepConsumer) {
-        this.stepConsumer = stepConsumer;
+    public TimelineMonitor(Consumer<SwTimeline> timelineConsumer) {
+        this.timelineConsumer = timelineConsumer;
     }
 
     private final static List<Class<?>> downlinkMessages;
@@ -204,7 +204,7 @@ public class StepperMonitor extends MonitorTask {
 
         var messageBody = Json.toJson(message);
 
-        stepConsumer.accept(new SwStep(loggerName, isUplink, severity, messageName, messageBody));
+        timelineConsumer.accept(new SwTimeline(loggerName, isUplink, severity, messageName, messageBody));
     }
 
     @Override
