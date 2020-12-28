@@ -23,6 +23,7 @@ import tr.havelsan.ueransim.nts.nts.NtsTask;
 import tr.havelsan.ueransim.utils.Tag;
 import tr.havelsan.ueransim.utils.Utils;
 import tr.havelsan.ueransim.utils.console.LogEntry;
+import tr.havelsan.ueransim.utils.console.Logger;
 
 import java.util.ArrayList;
 import java.util.function.Consumer;
@@ -35,6 +36,7 @@ public class AgentApp {
     private CliTask cliTask;
     private DispatchMonitor dispatchMonitor;
     private LogTask logTask;
+    private Consumer<LogEntry> logHandler;
 
     private WebInterface webInterface;
 
@@ -53,12 +55,15 @@ public class AgentApp {
         logTask = new LogTask(webInterface::onMessage);
         logTask.start();
 
+        logHandler = logEntry -> {
+            if (logEntry != null && logEntry.tag != Tag.MSG)
+                logTask.push(logEntry);
+        };
+        Logger.GLOBAL.addLogHandler(logHandler);
+
         ueransim = new AppBuilder()
                 .addMonitor(dispatchMonitor)
-                .addMonitor(new NodeInitializerTask(logEntry -> {
-                    if (logEntry != null && logEntry.tag != Tag.MSG)
-                        logTask.push(logEntry);
-                }))
+                .addMonitor(new NodeInitializerTask(logHandler))
                 .addMonitor(new TimelineMonitor(webInterface::onMessage))
                 .addMonitor(new LoadTestNotifierMonitor(webInterface::onMessage))
                 .build();
