@@ -84,7 +84,7 @@ public class CliClient {
         new CommandLine(new CliOpt.RootCommand())
                 .registerConverter(OctetString.class, OctetString::new)
                 .registerConverter(Supi.class, value -> {
-                    var matcher = Pattern.compile("^(imsi-)?(\\d{15,16})$").matcher(value);
+                    var matcher = Pattern.compile("^(imsi-|ue-)?(\\d{15,16})$").matcher(value);
                     if (matcher.find())
                         return new Supi("imsi", matcher.group(2));
                     throw new IllegalArgumentException("Invalid IMSI format.");
