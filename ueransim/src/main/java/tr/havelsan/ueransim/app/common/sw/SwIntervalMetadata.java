@@ -5,12 +5,12 @@
 
 package tr.havelsan.ueransim.app.common.sw;
 
-import tr.havelsan.ueransim.app.app.monitor.LoadTestMonitor;
+import tr.havelsan.ueransim.app.app.entry.Metadata;
 
 public class SwIntervalMetadata extends SocketWrapper{
-    public final LoadTestMonitor.IntervalMetadata intervalMetadata;
+    public final Metadata.IntervalMetadata intervalMetadata;
 
-    public SwIntervalMetadata(LoadTestMonitor.IntervalMetadata intervalMetadata) {
+    public SwIntervalMetadata(Metadata.IntervalMetadata intervalMetadata) {
         this.intervalMetadata = intervalMetadata;
     }
 }

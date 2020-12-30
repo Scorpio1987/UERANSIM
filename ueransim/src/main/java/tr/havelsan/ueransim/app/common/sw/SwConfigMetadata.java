@@ -1,11 +1,11 @@
 package tr.havelsan.ueransim.app.common.sw;
 
-import tr.havelsan.ueransim.app.app.entry.WebApp;
+import tr.havelsan.ueransim.app.app.entry.Metadata;
 
 public class SwConfigMetadata extends SocketWrapper {
-    public final WebApp.ConfigMetadata configMetadata;
+    public final Metadata.ConfigMetadata configMetadata;
 
-    public SwConfigMetadata(WebApp.ConfigMetadata configMetadata) {
+    public SwConfigMetadata(Metadata.ConfigMetadata configMetadata) {
         this.configMetadata = configMetadata;
     }
 }

@@ -7,7 +7,7 @@ package tr.havelsan.ueransim.app.app.monitor;
 
 import tr.havelsan.ueransim.app.common.enums.EConnType;
 import tr.havelsan.ueransim.app.common.simctx.BaseSimContext;
-import tr.havelsan.ueransim.app.common.sw.SwStep;
+import tr.havelsan.ueransim.app.common.sw.SwTimeline;
 import tr.havelsan.ueransim.nas.core.messages.NasMessage;
 import tr.havelsan.ueransim.nas.impl.messages.*;
 import tr.havelsan.ueransim.ngap0.core.NGAP_BaseMessage;
@@ -21,20 +21,20 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class StepperMonitor extends MonitorTask {
+public class TimelineMonitor extends MonitorTask {
 
-    private final Consumer<SwStep> stepConsumer;
+    private final Consumer<SwTimeline> timelineConsumer;
 
-    public StepperMonitor(Consumer<SwStep> stepConsumer) {
-        this.stepConsumer = stepConsumer;
+    public TimelineMonitor(Consumer<SwTimeline> timelineConsumer) {
+        this.timelineConsumer = timelineConsumer;
     }
 
     private final static List<Class<?>> downlinkMessages;
     private final static List<Class<?>> uplinkMessages;
 
     static {
-        List<Class<?>> downlink = new ArrayList<>();
-        List<Class<?>> uplink = new ArrayList<>();
+        var downlink = new ArrayList<Class<?>>();
+        var uplink = new ArrayList<Class<?>>();
 
         downlink.add(AuthenticationRequest.class);
         downlink.add(ConfigurationUpdateCommand.class);
@@ -179,7 +179,7 @@ public class StepperMonitor extends MonitorTask {
     }
 
     private static boolean messageIsUplink(Object msg) {
-        Class<?> messageClass = msg.getClass();
+        var messageClass = msg.getClass();
         if (uplinkMessages.contains(messageClass)) {
             return true;
         } else if (downlinkMessages.contains(messageClass)) {
@@ -196,7 +196,7 @@ public class StepperMonitor extends MonitorTask {
         }
 
         var loggerName = ctx.nodeName;
-        var isUplink = messageIsUplink(message);
+        boolean isUplink = messageIsUplink(message);
         var severity = messageSeverity(message);
         var messageName = message.getClass().getSimpleName();
         if (messageName.startsWith("NGAP_"))
@@ -204,26 +204,31 @@ public class StepperMonitor extends MonitorTask {
 
         var messageBody = Json.toJson(message);
 
-        stepConsumer.accept(new SwStep(loggerName, isUplink, severity, messageName, messageBody));
+        timelineConsumer.accept(new SwTimeline(loggerName, isUplink, severity, messageName, messageBody));
     }
 
     @Override
-    public void onConnected(BaseSimContext ctx, EConnType connectionType) {
+    protected void onCreate(BaseSimContext ctx) {
 
     }
 
     @Override
-    public void onSend(BaseSimContext ctx, Object message) {
+    protected void onConnected(BaseSimContext ctx, EConnType connectionType) {
+
+    }
+
+    @Override
+    protected void onSend(BaseSimContext ctx, Object message) {
         onMessage(ctx, message);
     }
 
     @Override
-    public void onReceive(BaseSimContext ctx, Object message) {
+    protected void onReceive(BaseSimContext ctx, Object message) {
         onMessage(ctx, message);
     }
 
     @Override
-    public void onSwitched(BaseSimContext ctx, Enum<?> state) {
+    protected void onSwitched(BaseSimContext ctx, Enum<?> state) {
 
     }
 }

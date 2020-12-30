@@ -5,6 +5,7 @@
 
 package tr.havelsan.ueransim.app.app.monitor;
 
+import tr.havelsan.ueransim.app.app.entry.Metadata;
 import tr.havelsan.ueransim.app.common.enums.EConnType;
 import tr.havelsan.ueransim.app.common.simctx.BaseSimContext;
 import tr.havelsan.ueransim.nas.impl.messages.*;
@@ -22,17 +23,22 @@ public class LoadTestMonitor extends MonitorTask {
     }
 
     @Override
-    public void onConnected(BaseSimContext ctx, EConnType connType) {
+    protected void onCreate(BaseSimContext ctx) {
 
     }
 
     @Override
-    public void onSwitched(BaseSimContext ctx, Enum<?> state) {
+    protected void onConnected(BaseSimContext ctx, EConnType connType) {
 
     }
 
     @Override
-    public void onSend(BaseSimContext ctx, Object message) {
+    protected void onSwitched(BaseSimContext ctx, Enum<?> state) {
+
+    }
+
+    @Override
+    protected void onSend(BaseSimContext ctx, Object message) {
         if (message instanceof RegistrationRequest) {
             intervalStarted(ctx, "registration");
             intervalStarted(ctx, "phase1");
@@ -47,7 +53,7 @@ public class LoadTestMonitor extends MonitorTask {
     }
 
     @Override
-    public void onReceive(BaseSimContext ctx, Object message) {
+    protected void onReceive(BaseSimContext ctx, Object message) {
         if (message instanceof RegistrationReject) {
             intervalEnded(ctx, "registration", false);
         } else if (message instanceof RegistrationAccept) {
@@ -78,65 +84,10 @@ public class LoadTestMonitor extends MonitorTask {
         }
 
         var delta = System.currentTimeMillis() - time;
-        onIntervalResult(id, IntervalMetadata.getIntervalDisplay(id), isSuccess, ctx.nodeName, delta);
+        onIntervalResult(id, Metadata.IntervalMetadata.getIntervalDisplay(id), isSuccess, ctx.nodeName, delta);
     }
 
     protected void onIntervalResult(String id, String display, boolean isSuccess, String nodeName, long deltaMs) {
 
-    }
-
-    public static class IntervalMetadata {
-        public static IntervalMetadata INSTANCE = new IntervalMetadata();
-
-        public final IntervalInfo registration;
-        public final IntervalInfo phase1;
-        public final IntervalInfo authentication;
-        public final IntervalInfo phase2;
-        public final IntervalInfo securityModeControl;
-        public final IntervalInfo phase3;
-        public final IntervalInfo deregistration;
-
-        private IntervalMetadata() {
-            this.registration = new IntervalInfo("registration", null, getIntervalDisplay("registration"));
-            this.phase1 = new IntervalInfo("phase1", "registration", getIntervalDisplay("phase1"));
-            this.authentication = new IntervalInfo("authentication", "registration", getIntervalDisplay("authentication"));
-            this.phase2 = new IntervalInfo("phase2", "registration", getIntervalDisplay("phase2"));
-            this.securityModeControl = new IntervalInfo("securityModeControl", "registration", getIntervalDisplay("securityModeControl"));
-            this.phase3 = new IntervalInfo("phase3", "registration", getIntervalDisplay("phase3"));
-            this.deregistration = new IntervalInfo("deregistration", null, getIntervalDisplay("deregistration"));
-        }
-
-        public static String getIntervalDisplay(String id) {
-            switch (id) {
-                case "registration":
-                    return "Registration";
-                case "phase1":
-                    return "Phase 1 (Registration-Authentication)";
-                case "authentication":
-                    return "Authentication";
-                case "phase2":
-                    return "Phase 2 (Authentication-SecurityModeControl)";
-                case "securityModeControl":
-                    return "Security Mode Control";
-                case "phase3":
-                    return "Phase 3 (SecurityModeControl-RegistrationAccept)";
-                case "deregistration":
-                    return "De-Registration";
-                default:
-                    return id;
-            }
-        }
-    }
-
-    public static class IntervalInfo {
-        public final String id;
-        public final String parent;
-        public final String display;
-
-        public IntervalInfo(String id, String parent, String display) {
-            this.id = id;
-            this.parent = parent;
-            this.display = display;
-        }
     }
 }

@@ -104,6 +104,7 @@ public class UeRanSim {
             gnbMap.put(ctx.ctxId, ctx);
             ctxByNodeName.put(ctx.nodeName, ctx);
         }
+        triggerOnCreate(ctx);
         GnbNode.run(ctx);
         return ctx.ctxId;
     }
@@ -118,6 +119,7 @@ public class UeRanSim {
             ueMap.put(ctx.ctxId, ctx);
             ctxByNodeName.put(ctx.nodeName, ctx);
         }
+        triggerOnCreate(ctx);
         UeNode.run(ctx);
         return ctx.ctxId;
     }
@@ -128,6 +130,10 @@ public class UeRanSim {
 
     private void dispatchTrigger(TriggeringWrapper tw) {
         for (var monitor : monitors) monitor.push(tw);
+    }
+
+    public void triggerOnCreate(BaseSimContext ctx) {
+        dispatchTrigger(new TwOnCreate(ctx));
     }
 
     public void triggerOnSend(BaseSimContext ctx, Object msg) {

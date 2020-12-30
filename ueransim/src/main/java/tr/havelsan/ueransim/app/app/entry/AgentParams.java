@@ -6,12 +6,13 @@
 package tr.havelsan.ueransim.app.app.entry;
 
 import picocli.CommandLine;
+import tr.havelsan.ueransim.app.app.cli.CliClient;
 
 import java.util.function.Consumer;
 
 @CommandLine.Command(name = "nr-agent",
         mixinStandardHelpOptions = true,
-        versionProvider = ClientApp.VersionProvider.class
+        versionProvider = CliClient.VersionProvider.class
 )
 public class AgentParams implements Runnable {
     private final Consumer<AgentParams> consumer;
