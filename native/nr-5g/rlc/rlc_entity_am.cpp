@@ -41,14 +41,14 @@ void AmEntity::clearEntity()
     byteWithoutPoll = 0;
 
     txCurrentSize = 0;
-    txBuffer.clear();
+    txBuffer.clearAndDelete();
 
     rxCurrentSize = 0;
-    rxBuffer.clear();
+    rxBuffer.clearAndDelete();
 
-    retBuffer.clear();
-    waitBuffer.clear();
-    ackBuffer.clear();
+    retBuffer.clearAndDelete();
+    waitBuffer.clearAndDelete();
+    ackBuffer.clearAndDelete();
 
     rxNext = 0;
     rxNextHighest = 0;
@@ -163,36 +163,37 @@ void AmEntity::receivePdu(uint8_t *data, int size)
 void AmEntity::receiveAmdPdu(AmdPdu *pdu)
 {
     // 5.3.4 ... if the AMD PDU is to be discarded as specified in clause 5.2.3.2.2; or ....
-    auto triggerControl = [this, pdu]() {
+    auto discard = [this, pdu]() {
         if (pdu->p)
             statusTriggered = true;
+        delete pdu;
     };
 
     if (si::requiresSo(pdu->si) && pdu->so == 0)
     {
         // Bad SO value, discard PDU.
-        triggerControl();
+        discard();
         return;
     }
 
     if (pdu->size == 0)
     {
         // No data, discard PDU.
-        triggerControl();
+        discard();
         return;
     }
 
     if (rxCurrentSize + pdu->size > rxMaxSize)
     {
         // No room in RX buffer, discard PDU.
-        triggerControl();
+        discard();
         return;
     }
 
     // Discard if x falls outside of the receiving window
     if (!isInReceiveWindow(pdu->sn))
     {
-        triggerControl();
+        discard();
         return;
     }
 
@@ -200,7 +201,7 @@ void AmEntity::receiveAmdPdu(AmdPdu *pdu)
     //  discard the received AMD PDU
     if (func::IsAlreadyReceived(rxBuffer, pdu->sn, pdu->so, pdu->size))
     {
-        triggerControl();
+        discard();
         return;
     }
 
@@ -272,7 +273,7 @@ void AmEntity::actionsOnReception(AmdPdu &pdu)
             {
                 do
                 {
-                    rxBuffer.removeFirst();
+                    delete rxBuffer.removeFirst();
                 } while (!rxBuffer.isEmpty() && rxBuffer.getFirst()->value->sn == rxNext);
                 rxNext = (rxNext + 1) % snModulus;
             }
@@ -371,7 +372,7 @@ void AmEntity::ackReceived(int ackSn)
         auto segment = cursor->value;
         if (snCompareTx(segment->sdu->sn, ackSn) < 0)
         {
-            cursor = waitBuffer.removeAndNext(cursor);
+            waitBuffer.removeAndIncrement(cursor);
             insertToList(ackBuffer, segment);
         }
         else
@@ -391,7 +392,7 @@ void AmEntity::ackReceived(int ackSn)
                 segment->sdu->retransmissionCount--;
                 alreadyDec[segment->sdu->sn] = true;
             }
-            cursor = retBuffer.removeAndNext(cursor);
+            retBuffer.removeAndIncrement(cursor);
             insertToList(ackBuffer, segment);
         }
         else
@@ -415,7 +416,7 @@ void AmEntity::nackReceived(int nackSn, int soStart, int soEnd, AmEntity::Snset 
         {
             if (func::SoOverlap(soStart, soEnd, segment->so, segment->so + segment->size - 1))
             {
-                cursor = waitBuffer.removeAndNext(cursor);
+                waitBuffer.removeAndIncrement(cursor);
                 considerRetransmission(segment, !alreadyRetIncremented[nackSn]);
                 alreadyRetIncremented[nackSn] = true;
             }
@@ -439,7 +440,7 @@ void AmEntity::nackReceived(int nackSn, int soStart, int soEnd, AmEntity::Snset 
         {
             if (func::SoOverlap(soStart, soEnd, segment->so, segment->so + segment->size - 1))
             {
-                cursor = ackBuffer.removeAndNext(cursor);
+                ackBuffer.removeAndIncrement(cursor);
                 considerRetransmission(segment, !alreadyRetIncremented[nackSn]);
                 alreadyRetIncremented[nackSn] = true;
             }
@@ -479,7 +480,7 @@ void AmEntity::checkForSuccessIndication()
         consumer->sduSuccessfulDelivery(this, cursor->value->sdu->sduId);
 
         while (cursor != nullptr && cursor->value->sdu->sn == sn)
-            cursor = ackBuffer.removeAndNext(cursor);
+            delete ackBuffer.removeAndIncrement(cursor);
         txNextAck = (txNextAck + 1) % snModulus;
     }
 }
@@ -500,7 +501,7 @@ int AmEntity::createPdu(uint8_t *buffer, int maxSize)
     //  it to lower layer ...
     if (statusTriggered && statusProhibitTimer.stoppedOrExpired(tCurrent))
     {
-        int res = createStatusPdu(buffer, maxSize);
+        int res = createStatusPdu(buffer, maxSize, false);
         if (res != 0)
             return res;
     }
@@ -515,7 +516,7 @@ int AmEntity::createPdu(uint8_t *buffer, int maxSize)
     return createTxPdu(buffer, maxSize);
 }
 
-int AmEntity::createStatusPdu(uint8_t *buffer, int maxSize)
+int AmEntity::createStatusPdu(uint8_t *buffer, int maxSize, bool noSideEffect)
 {
     if (maxSize < 3)
         return 0;
@@ -531,32 +532,32 @@ int AmEntity::createStatusPdu(uint8_t *buffer, int maxSize)
         if (snCompareRx(startSn, rxHighestStatus) >= 0)
             break;
 
-        auto missing = func::FindMissingBlock(rxBuffer, startSn, startSo, (rxHighestStatus - 1 + snModulus) % snModulus,
-                                              0xFFFF, snModulus);
-        if (missing == nullptr)
+        MissingBlock missing{};
+        if (!func::FindMissingBlock(rxBuffer, startSn, startSo, (rxHighestStatus - 1 + snModulus) % snModulus, 0xFFFF,
+                                    snModulus, missing))
             break;
 
         NackBlock block{};
-        block.nackSn = missing->snStart;
+        block.nackSn = missing.snStart;
         block.nackRange =
-            missing->snStart == missing->snEnd ? -1 : (missing->snEnd - missing->snStart + snModulus) % snModulus + 1;
+            missing.snStart == missing.snEnd ? -1 : (missing.snEnd - missing.snStart + snModulus) % snModulus + 1;
 
         // Since the NACK range is 8-bit. We must limit to 255, and cut if needed.
         if (block.nackRange > 255)
         {
-            if (missing->soStart == 0 && missing->soEnd == 0xFFFF)
+            if (missing.soStart == 0 && missing.soEnd == 0xFFFF)
             {
                 block.soStart = -1;
                 block.soEnd = -1;
             }
             else
             {
-                block.soStart = missing->soStart;
+                block.soStart = missing.soStart;
                 block.soEnd = 0xFFFF;
             }
 
             block.nackRange = 255;
-            startSn = (missing->snStart + 256) % snModulus;
+            startSn = (missing.snStart + 256) % snModulus;
             startSo = 0;
 
             pdu.nackBlocks.push_back(block);
@@ -564,21 +565,20 @@ int AmEntity::createStatusPdu(uint8_t *buffer, int maxSize)
             if (pdu.calculatedSize(snLength == 12) > maxSize)
             {
                 pdu.nackBlocks.pop_back();
-                delete missing;
                 break;
             }
         }
         else
         {
-            if (missing->soStart == 0 && missing->soEnd == 0xFFFF)
+            if (missing.soStart == 0 && missing.soEnd == 0xFFFF)
             {
                 block.soStart = -1;
                 block.soEnd = -1;
             }
             else
             {
-                block.soStart = missing->soStart;
-                block.soEnd = missing->soEnd;
+                block.soStart = missing.soStart;
+                block.soEnd = missing.soEnd;
             }
 
             pdu.nackBlocks.push_back(block);
@@ -586,42 +586,44 @@ int AmEntity::createStatusPdu(uint8_t *buffer, int maxSize)
             if (pdu.calculatedSize(snLength == 12) > maxSize)
             {
                 pdu.nackBlocks.pop_back();
-                delete missing;
                 break;
             }
 
-            if (missing->soNext == -1 && missing->snNext == -1)
-            {
-                delete missing;
+            if (missing.soNext == -1 && missing.snNext == -1)
                 break;
-            }
 
-            startSn = missing->snNext;
-            startSo = missing->soNext;
+            startSn = missing.snNext;
+            startSo = missing.soNext;
         }
-
-        delete missing;
     }
 
     // Then find the ACK_SN
     int ackSn = rxNext;
-    auto cursor = rxBuffer.getFirst();
-    while (cursor != nullptr)
+
+    if (!noSideEffect)
     {
-        if (snCompareRx(cursor->value->sn, rxHighestStatus) >= 0)
-            break;
-        if (snCompareRx(cursor->value->sn, rxNext) >= 0)
+        auto cursor = rxBuffer.getFirst();
+        while (cursor != nullptr)
         {
-            if (cursor->value->isProcessed)
-                ackSn = (cursor->value->sn + 1) % snModulus;
+            if (snCompareRx(cursor->value->sn, rxHighestStatus) >= 0)
+                break;
+            if (snCompareRx(cursor->value->sn, rxNext) >= 0)
+            {
+                if (cursor->value->isProcessed)
+                    ackSn = (cursor->value->sn + 1) % snModulus;
+            }
+            cursor = cursor->getNext();
         }
-        cursor = cursor->getNext();
     }
+
     pdu.ackSn = ackSn;
 
-    // Reset trigger flag and start prohibit timer.
-    statusTriggered = false;
-    statusProhibitTimer.start(tCurrent);
+    if (!noSideEffect)
+    {
+        // Reset trigger flag and start prohibit timer.
+        statusTriggered = false;
+        statusProhibitTimer.start(tCurrent);
+    }
 
     // Finally encode the status PDU
     return RlcEncoder::EncodeStatus(buffer, pdu, snLength == 12);
@@ -728,20 +730,13 @@ int AmEntity::createTxPdu(uint8_t *buffer, int maxSize)
 
 int AmEntity::generateAmdForSdu(const RlcSduSegment &segment, bool includePoll, uint8_t *buffer)
 {
-    AmdPdu pdu{};
-    pdu.p = false;
-    pdu.si = segment.si;
-    pdu.sn = segment.sdu->sn;
-    pdu.so = segment.so;
-    pdu.data = new uint8_t[segment.size];
-    pdu.size = segment.size;
-    std::memcpy(pdu.data, segment.sdu->data + segment.so, segment.size);
+    bool p = false;
 
     if (includePoll)
     {
         // To include a poll in an AMD PDU, the transmitting side of an AM RLC entity shall
         // set the P field of the AMD PDU to "1";
-        pdu.p = true;
+        p = true;
 
         // set PDU_WITHOUT_POLL to 0;
         pduWithoutPoll = 0;
@@ -756,7 +751,8 @@ int AmEntity::generateAmdForSdu(const RlcSduSegment &segment, bool includePoll, 
         pollRetransmitTimer.start(tCurrent);
     }
 
-    return RlcEncoder::EncodeAmd(buffer, pdu, snLength == 12);
+    return RlcEncoder::EncodeAmd(buffer, snLength == 12, segment.si, segment.so, segment.sdu->sn,
+                                 segment.sdu->data + segment.so, segment.size, p);
 }
 
 //======================================================================================================
@@ -838,7 +834,7 @@ void AmEntity::actionsOnPollRetransmitTimerExpired()
                 {
                     considerRetransmission(cursor->value, !alreadyRetIncremented);
                     alreadyRetIncremented = true;
-                    cursor = waitBuffer.removeAndNext(cursor);
+                    waitBuffer.removeAndIncrement(cursor);
                 }
                 else
                 {
@@ -874,7 +870,13 @@ void AmEntity::calculateDataVolume(RlcDataVolume &volume)
 
 int AmEntity::estimateStatusSize()
 {
-    // TODO
+    // TODO: May be optimized
+    if (statusTriggered && statusProhibitTimer.stoppedOrExpired(tCurrent))
+    {
+        // just create a STATUS PDU but don't invoke side effects of the function.
+        uint8_t buffer[32768];
+        return createStatusPdu(buffer, 32768, true);
+    }
     return 0;
 }
 
@@ -900,7 +902,7 @@ void AmEntity::discardSdu(int sduId)
         return;
 
     // Remove the segment
-    txBuffer.remove(segment);
+    delete txBuffer.remove(segment);
 
     // TODO, WARNING: not really sure here because this is not included in the a.i
     txCurrentSize -= segment->value->size;

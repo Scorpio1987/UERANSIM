@@ -87,8 +87,7 @@ inline RlcSduSegment *UmPerformSegmentation(RlcSduSegment *sdu, int maxSize, int
     sdu->si = newSi;
     sdu->size -= overflowed;
 
-    auto next = new RlcSduSegment();
-    next->sdu = sdu->sdu;
+    auto next = new RlcSduSegment(sdu->sdu);
     next->si = nextSi;
     next->size = overflowed;
     next->so = sdu->so + sdu->size;
@@ -141,8 +140,7 @@ inline RlcSduSegment *AmPerformSegmentation(RlcSduSegment *sdu, int maxSize, int
     sdu->si = si::asNotLast(si);
     sdu->size -= overflowed;
 
-    auto next = new RlcSduSegment();
-    next->sdu = sdu->sdu;
+    auto next = new RlcSduSegment(sdu->sdu);
     next->si = si::asNotFirst(si);
     next->size = overflowed;
     next->so = sdu->so + sdu->size;
@@ -170,8 +168,7 @@ inline size_t InsertSduToTransmissionBuffer(uint8_t *data, size_t size, int sduI
     if (bufferCurrent + size > bufferMax)
         return 0;
 
-    auto segment = new RlcSduSegment();
-    segment->sdu = new RlcSdu(data, size, sduId);
+    auto segment = new RlcSduSegment(RlcSdu::NewFromData(data, size, sduId));
     segment->sdu->sn = -1;
     segment->sdu->retransmissionCount = -1;
     segment->size = size;
@@ -265,8 +262,8 @@ inline LinkedItem<T> *FirstItemIntersecting(LinkedList<T> &list, int sn, int so)
 /**
  * Finds the next missing block and returns that block. If no such a block is found, then null is returned.
  */
-inline MissingBlock *FindMissingBlock(LinkedList<AmdPdu> &rxBuffer, int startSn, int startSo, int endSn, int endSo,
-                                      int snModulus)
+inline bool FindMissingBlock(LinkedList<AmdPdu> &rxBuffer, int startSn, int startSo, int endSn, int endSo,
+                             int snModulus, MissingBlock &res)
 {
     // Start line >= end line ise missin part yok demektir.
     // Aksi halde bakmaya devam edilir:
@@ -293,7 +290,7 @@ inline MissingBlock *FindMissingBlock(LinkedList<AmdPdu> &rxBuffer, int startSn,
     //
 
     if (SnCompareRaw(startSn, endSn) > 0 || (SnCompareRaw(startSn, endSn) == 0 && startSo >= endSo))
-        return nullptr;
+        return false;
 
     auto segment = FirstItemIntersecting(rxBuffer, startSn, startSo);
     if (segment != nullptr)
@@ -307,14 +304,13 @@ inline MissingBlock *FindMissingBlock(LinkedList<AmdPdu> &rxBuffer, int startSn,
             assert(false);
 
         if (si::hasLast(segment->value->si))
-            return FindMissingBlock(rxBuffer, (endPointSn + 1) % snModulus, 0, endSn, endSo, snModulus);
+            return FindMissingBlock(rxBuffer, (endPointSn + 1) % snModulus, 0, endSn, endSo, snModulus, res);
         else
-            return FindMissingBlock(rxBuffer, endPointSn, endPointSo, endSn, endSo, snModulus);
+            return FindMissingBlock(rxBuffer, endPointSn, endPointSo, endSn, endSo, snModulus, res);
     }
 
-    auto res = new MissingBlock();
-    res->snStart = startSn;
-    res->soStart = startSo;
+    res.snStart = startSn;
+    res.soStart = startSo;
 
     auto cursor = rxBuffer.getFirst();
 
@@ -331,14 +327,14 @@ inline MissingBlock *FindMissingBlock(LinkedList<AmdPdu> &rxBuffer, int startSn,
 
     if (cursor == nullptr)
     {
-        res->snEnd = endSn;
-        res->soEnd = endSo;
+        res.snEnd = endSn;
+        res.soEnd = endSo;
 
         // There is no next
-        res->snNext = -1;
-        res->soNext = -1;
+        res.snNext = -1;
+        res.soNext = -1;
 
-        return res;
+        return true;
     }
 
     auto startPointSn = cursor->value->sn;
@@ -346,41 +342,41 @@ inline MissingBlock *FindMissingBlock(LinkedList<AmdPdu> &rxBuffer, int startSn,
 
     if (SnCompareRaw(startPointSn, endSn) > 0 || (SnCompareRaw(startPointSn, endSn) == 0 && startPointSo > endSo))
     {
-        res->snEnd = endSn;
-        res->soEnd = endSo;
+        res.snEnd = endSn;
+        res.soEnd = endSo;
 
         // There is no next
-        res->snNext = -1;
-        res->soNext = -1;
+        res.snNext = -1;
+        res.soNext = -1;
 
-        return res;
+        return true;
     }
 
     if (startPointSo != 0)
     {
-        res->snEnd = startPointSn;
-        res->soEnd = startPointSo - 1;
+        res.snEnd = startPointSn;
+        res.soEnd = startPointSo - 1;
 
         if (si::hasLast(cursor->value->si))
         {
-            res->snNext = (startPointSn + 1) % snModulus;
-            res->soNext = 0;
+            res.snNext = (startPointSn + 1) % snModulus;
+            res.soNext = 0;
         }
         else
         {
-            res->snNext = startPointSn;
-            res->soNext = (si::requiresSo(cursor->value->si) ? cursor->value->so : 0) + cursor->value->size;
+            res.snNext = startPointSn;
+            res.soNext = (si::requiresSo(cursor->value->si) ? cursor->value->so : 0) + cursor->value->size;
         }
     }
     else
     {
-        res->snEnd = (startPointSn - 1 + snModulus) % snModulus;
-        res->soEnd = 0xFFFF;
+        res.snEnd = (startPointSn - 1 + snModulus) % snModulus;
+        res.soEnd = 0xFFFF;
 
-        res->snNext = startPointSn;
-        res->soNext = 0;
+        res.snNext = startPointSn;
+        res.soNext = 0;
     }
-    return res;
+    return true;
 }
 
 /**
@@ -496,7 +492,7 @@ inline int DiscardRxPduIf(LinkedList<T> &list, SnPredicate predicate)
         {
             if (!cursor->value->isProcessed)
                 decreased += cursor->value->size;
-            cursor = list.removeAndNext(cursor);
+            delete list.removeAndIncrement(cursor);
         }
         else
         {
