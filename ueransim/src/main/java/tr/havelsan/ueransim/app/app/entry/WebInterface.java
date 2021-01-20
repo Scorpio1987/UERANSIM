@@ -15,6 +15,7 @@ import tr.havelsan.ueransim.app.common.sw.SwCommandResponse;
 import tr.havelsan.ueransim.app.utils.SocketWrapperSerializer;
 import tr.havelsan.ueransim.nts.nts.NtsTask;
 import tr.havelsan.ueransim.utils.Utils;
+import tr.havelsan.ueransim.utils.jcolor.AnsiColor;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -99,7 +100,8 @@ public class WebInterface {
                     new CliClient(code -> {
                         senderTask.push(new SwCommandResponse(transactionId, true, null, null));
                     }, colorMessage -> {
-                        senderTask.push(new SwCommandResponse(transactionId, false, colorMessage.first, colorMessage.second));
+                        senderTask.push(new SwCommandResponse(transactionId, false,
+                                colorMessage.first != null ? AnsiColor.generateCode(colorMessage.first) : "", colorMessage.second));
                     }).start(args);
                 }
             }
