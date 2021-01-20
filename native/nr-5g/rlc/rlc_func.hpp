@@ -1,12 +1,20 @@
+//
+// This file is a part of UERANSIM open source project.
+// Copyright (c) 2021 ALİ GÜNGÖR, Havelsan.
+//
+// The software and all associated files are licensed under GPL-3.0
+// and subject to the terms and conditions defined in LICENSE file.
+//
+
 #pragma once
 
-#include "../utils/linked_list.hpp"
 #include "rlc_utils.hpp"
+#include <linked_list.hpp>
 
 #include <cassert>
 #include <functional>
 
-namespace nr::rlc::func
+namespace rlc::func
 {
 
 /**
@@ -559,4 +567,4 @@ inline int ListSum(LinkedList<T> &list, const std::function<int(const T *item)> 
     return res;
 }
 
-} // namespace nr::rlc::func
+} // namespace rlc::func

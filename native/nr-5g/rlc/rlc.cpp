@@ -1,9 +1,17 @@
+//
+// This file is a part of UERANSIM open source project.
+// Copyright (c) 2021 ALİ GÜNGÖR, Havelsan.
+//
+// The software and all associated files are licensed under GPL-3.0
+// and subject to the terms and conditions defined in LICENSE file.
+//
+
 #include "rlc.hpp"
 #include "rlc_entity_am.hpp"
 #include "rlc_entity_tm.hpp"
 #include "rlc_entity_um.hpp"
 
-namespace nr::rlc
+namespace rlc
 {
 
 IRlcEntity *NewTmEntity(IRlcConsumer *consumer, int txMaxSize)
@@ -23,4 +31,4 @@ IRlcEntity *NewAmEntity(IRlcConsumer *consumer, int snLength, int txMaxSize, int
                         pollRetransmitPeriod, reassemblyPeriod, statusProhibitPeriod);
 }
 
-} // namespace nr::rlc
+} // namespace rlc

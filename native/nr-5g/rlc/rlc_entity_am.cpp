@@ -1,3 +1,11 @@
+//
+// This file is a part of UERANSIM open source project.
+// Copyright (c) 2021 ALİ GÜNGÖR, Havelsan.
+//
+// The software and all associated files are licensed under GPL-3.0
+// and subject to the terms and conditions defined in LICENSE file.
+//
+
 #include "rlc_entity_am.hpp"
 #include "rlc_encoder.hpp"
 #include "rlc_func.hpp"
@@ -6,7 +14,7 @@
 
 #define REASSEMBLE_BUFFER_LEN 32768
 
-namespace nr::rlc
+namespace rlc
 {
 
 //======================================================================================================
@@ -109,13 +117,26 @@ bool AmEntity::pollControlForTransmissionOrRetransmission()
 //                                              INTERNAL
 //======================================================================================================
 
-bool AmEntity::areAllSegmentsAreInAck(int sn)
+bool AmEntity::areAllSegmentsInAck(int sn)
 {
-    // If transmission, retransmission and wait buffers don't contain such a segment, then
-    // we can say that all segments are in acknowledge buffer.
-    // TODO: Optimize this method.
-    return !func::SduListContainsSn(txBuffer, sn) && !func::SduListContainsSn(retBuffer, sn) &&
-           !func::SduListContainsSn(waitBuffer, sn);
+    int ackCount = 0, refCount = -1;
+
+    auto cursor = ackBuffer.getFirst();
+    while (cursor != nullptr)
+    {
+        RlcSdu *sdu = cursor->value->sdu;
+        if (snCompareTx(sdu->sn, sn) > 0)
+            break;
+        if (snCompareTx(sdu->sn, sn) == 0)
+        {
+            if (refCount == -1)
+                refCount = sdu->_refCount;
+            ackCount++;
+        }
+        cursor = cursor->getNext();
+    }
+
+    return ackCount == refCount;
 }
 
 int AmEntity::sduListCompare(const RlcSduSegment &a, const RlcSduSegment &b)
@@ -472,7 +493,7 @@ void AmEntity::checkForSuccessIndication()
     auto cursor = ackBuffer.getFirst();
 
     // TODO: Currently sequential succ indication, but not immediate.
-    while (cursor != nullptr && cursor->value->sdu->sn == txNextAck && areAllSegmentsAreInAck(cursor->value->sdu->sn))
+    while (cursor != nullptr && cursor->value->sdu->sn == txNextAck && areAllSegmentsInAck(cursor->value->sdu->sn))
     {
         txCurrentSize -= cursor->value->sdu->size;
         int sn = cursor->value->sdu->sn;
@@ -913,4 +934,4 @@ void AmEntity::reestablishment()
     clearEntity();
 }
 
-} // namespace nr::rlc
+} // namespace rlc

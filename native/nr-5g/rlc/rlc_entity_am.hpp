@@ -1,11 +1,19 @@
+//
+// This file is a part of UERANSIM open source project.
+// Copyright (c) 2021 ALİ GÜNGÖR, Havelsan.
+//
+// The software and all associated files are licensed under GPL-3.0
+// and subject to the terms and conditions defined in LICENSE file.
+//
+
 #pragma once
 
-#include "../utils/linked_list.hpp"
 #include "rlc.hpp"
 #include "rlc_utils.hpp"
 #include <bitset>
+#include <linked_list.hpp>
 
-namespace nr::rlc
+namespace rlc
 {
 
 class AmEntity : public IRlcEntity
@@ -77,7 +85,7 @@ class AmEntity : public IRlcEntity
     bool pollControlForTransmissionOrRetransmission();
 
     /* Internal */
-    bool areAllSegmentsAreInAck(int sn);
+    bool areAllSegmentsInAck(int sn);
     int sduListCompare(const RlcSduSegment &a, const RlcSduSegment &b);
     void insertToList(LinkedList<RlcSduSegment> &list, RlcSduSegment *segment);
 
@@ -118,4 +126,4 @@ class AmEntity : public IRlcEntity
     }
 };
 
-} // namespace nr::rlc
+} // namespace rlc

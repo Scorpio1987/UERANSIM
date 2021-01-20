@@ -1,9 +1,17 @@
+//
+// This file is a part of UERANSIM open source project.
+// Copyright (c) 2021 ALİ GÜNGÖR, Havelsan.
+//
+// The software and all associated files are licensed under GPL-3.0
+// and subject to the terms and conditions defined in LICENSE file.
+//
+
 #pragma once
 
 #include <cstdint>
 #include <cstdlib>
 
-namespace nr::rlc
+namespace rlc
 {
 
 struct IRlcConsumer;
@@ -51,4 +59,4 @@ IRlcEntity *NewUmEntity(IRlcConsumer *consumer, int snLength, int tReassemblyPer
 IRlcEntity *NewAmEntity(IRlcConsumer *consumer, int snLength, int txMaxSize, int rxMaxSize, int pollPdu, int pollByte,
                         int maxRetThreshold, int pollRetransmitPeriod, int reassemblyPeriod, int statusProhibitPeriod);
 
-} // namespace nr::rlc
+} // namespace rlc

@@ -1,6 +1,14 @@
+//
+// This file is a part of UERANSIM open source project.
+// Copyright (c) 2021 ALİ GÜNGÖR, Havelsan.
+//
+// The software and all associated files are licensed under GPL-3.0
+// and subject to the terms and conditions defined in LICENSE file.
+//
+
 #include "nts.hpp"
 
-#define WAIT_TIME_IF_NO_TIMER (60 * 1000 * 1000)
+#define WAIT_TIME_IF_NO_TIMER 500
 
 static int64_t currentTimeMs()
 {
@@ -60,7 +68,10 @@ bool NtsTask::push(NtsMessage *msg)
 {
     std::unique_lock<std::mutex> lock(mutex);
     if (isQuiting)
+    {
+        delete msg;
         return false;
+    }
     msgQueue.push_back(msg);
     cv.notify_one();
     return true;
@@ -70,7 +81,10 @@ bool NtsTask::pushFront(NtsMessage *msg)
 {
     std::unique_lock<std::mutex> lock(mutex);
     if (isQuiting)
+    {
+        delete msg;
         return false;
+    }
     msgQueue.push_front(msg);
     cv.notify_one();
     return true;
@@ -90,32 +104,6 @@ bool NtsTask::setTimerAbsolute(int timerId, int64_t timeMs)
     timerBase.setTimerAbsolute(timerId, timeMs);
     cv.notify_one();
     return true;
-}
-
-NtsMessage *NtsTask::take()
-{
-    while (true)
-    {
-        std::unique_lock<std::mutex> lock(mutex);
-        if (isQuiting)
-            return nullptr;
-        cv.wait_for(lock, std::chrono::milliseconds(timerBase.getNextWaitTime()));
-        if (isQuiting)
-            return nullptr;
-        if (!msgQueue.empty())
-        {
-            NtsMessage *ret = msgQueue.front();
-            msgQueue.pop_front();
-            return ret;
-        }
-        TimerInfo *expiredTimer = timerBase.getAndRemoveExpiredTimer();
-        if (expiredTimer != nullptr)
-        {
-            NtsMessage *msg = timerExpiredMessage(expiredTimer);
-            delete expiredTimer;
-            return msg;
-        }
-    }
 }
 
 NtsMessage *NtsTask::poll()
@@ -144,7 +132,13 @@ NtsMessage *NtsTask::poll(int64_t timeout)
     std::unique_lock<std::mutex> lock(mutex);
     if (isQuiting)
         return nullptr;
-    cv.wait_for(lock, std::chrono::milliseconds(timeout));
+    if (!msgQueue.empty())
+    {
+        NtsMessage *ret = msgQueue.front();
+        msgQueue.pop_front();
+        return ret;
+    }
+    cv.wait_for(lock, std::chrono::milliseconds(std::min(timerBase.getNextWaitTime(), timeout)));
     if (isQuiting)
         return nullptr;
     if (!msgQueue.empty())
@@ -163,23 +157,36 @@ NtsMessage *NtsTask::poll(int64_t timeout)
     return nullptr;
 }
 
+NtsMessage *NtsTask::take()
+{
+    return poll(WAIT_TIME_IF_NO_TIMER);
+}
+
 void NtsTask::start()
 {
     std::unique_lock<std::mutex> lock(mutex);
+
+    onStart();
+
     thread = std::thread{[this]() {
-        if (!isQuiting)
-            onStart();
-        while (!isQuiting)
-            onLoop();
-        delete this;
+        while (true)
+        {
+            if (this->isQuiting)
+                break;
+            this->onLoop();
+        }
     }};
 }
 
 void NtsTask::quit()
 {
     std::unique_lock<std::mutex> lock(mutex);
+    if (isQuiting)
+        return;
+
     isQuiting = true;
-    thread.detach();
+
+    thread.join();
 
     while (!msgQueue.empty())
     {
@@ -189,5 +196,6 @@ void NtsTask::quit()
         // Since we have the ownership at this time, we should delete the messages.
         delete msg;
     }
-    cv.notify_all();
+
+    onQuit();
 }

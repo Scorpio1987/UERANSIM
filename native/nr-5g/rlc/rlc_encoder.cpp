@@ -1,25 +1,22 @@
+//
+// This file is a part of UERANSIM open source project.
+// Copyright (c) 2021 ALİ GÜNGÖR, Havelsan.
+//
+// The software and all associated files are licensed under GPL-3.0
+// and subject to the terms and conditions defined in LICENSE file.
+//
+
 #include "rlc_encoder.hpp"
-#include "../utils/bit_buffer.hpp"
+#include <bit_buffer.hpp>
+#include <bits.hpp>
 
-template <int start, int end>
-static inline int octetBits(uint8_t octet)
-{
-    static_assert(start >= 0 && start <= 7);
-    static_assert(end >= 0 && end <= 7);
-    static_assert(start <= end);
-
-    octet >>= start;
-    int delta = end - start + 1;
-    return octet & ((1 << delta) - 1);
-}
-
-namespace nr::rlc
+namespace rlc
 {
 
 UmdPdu *RlcEncoder::DecodeUmd(uint8_t *data, int size, bool isShortSn)
 {
     auto *pdu = new UmdPdu();
-    pdu->si = static_cast<ESegmentInfo>(octetBits<6, 7>(data[0]));
+    pdu->si = static_cast<ESegmentInfo>(bits::BitRange8<6, 7>(data[0]));
     pdu->so = 0;
     pdu->sn = 0;
     pdu->isProcessed = false;
@@ -30,14 +27,14 @@ UmdPdu *RlcEncoder::DecodeUmd(uint8_t *data, int size, bool isShortSn)
     {
         if (isShortSn)
         {
-            pdu->sn = octetBits<0, 5>(data[index]);
+            pdu->sn = bits::BitRange8<0, 5>(data[index]);
         }
         else
         {
-            pdu->sn = octetBits<0, 3>(data[index]);
+            pdu->sn = bits::BitRange8<0, 3>(data[index]);
             pdu->sn <<= 8;
             index++;
-            pdu->sn |= octetBits<0, 7>(data[index]);
+            pdu->sn |= bits::BitRange8<0, 7>(data[index]);
         }
 
         if (si::requiresSo(pdu->si))
@@ -107,8 +104,8 @@ AmdPdu *RlcEncoder::DecodeAmd(uint8_t *data, int size, bool isShortSn)
     pdu->so = 0;
 
     pdu->p = (octet >> 6) & 0b1;
-    pdu->si = static_cast<ESegmentInfo>(octetBits<4, 5>(octet));
-    pdu->sn = isShortSn ? octetBits<0, 3>(octet) : octetBits<0, 1>(octet);
+    pdu->si = static_cast<ESegmentInfo>(bits::BitRange8<4, 5>(octet));
+    pdu->sn = isShortSn ? bits::BitRange8<0, 3>(octet) : bits::BitRange8<0, 1>(octet);
 
     int index = 1;
     octet = data[index++];
@@ -137,7 +134,7 @@ AmdPdu *RlcEncoder::DecodeAmd(uint8_t *data, int size, bool isShortSn)
 }
 
 int RlcEncoder::EncodeAmd(uint8_t *buffer, bool isShortSn, ESegmentInfo si, int so, int sn, uint8_t *data, int size,
-    bool p)
+                          bool p)
 {
     uint8_t octet = p ? 0b11000000 : 0b10000000;
     octet |= ((int)si) << 4;
@@ -295,4 +292,4 @@ int RlcEncoder::EncodeStatus(uint8_t *buf, const StatusPdu &pdu, bool isShortSn)
     return buffer.writtenOctets();
 }
 
-} // namespace nr::rlc
+} // namespace rlc

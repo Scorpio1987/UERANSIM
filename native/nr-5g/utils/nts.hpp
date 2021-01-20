@@ -1,3 +1,11 @@
+//
+// This file is a part of UERANSIM open source project.
+// Copyright (c) 2021 ALİ GÜNGÖR, Havelsan.
+//
+// The software and all associated files are licensed under GPL-3.0
+// and subject to the terms and conditions defined in LICENSE file.
+//
+
 #pragma once
 
 #include <atomic>
@@ -6,27 +14,42 @@
 #include <deque>
 #include <mutex>
 #include <queue>
+#include <scoped_thread.hpp>
 #include <thread>
 #include <vector>
 
-enum NtsMessageType : int
+enum class NtsMessageType
 {
     UNDEFINED = 0,
     TIMER_EXPIRED = 1,
-
     RESERVED_END = 1000,
-    // The enums are extensible
+
+    // Start of implementation specific types
+
+    SCTP_CONNECTION_REQUEST,
+    SCTP_ASSOCIATION_SETUP,
+    SCTP_ASSOCIATION_SHUTDOWN,
+    SCTP_CLIENT_RECEIVE,
+    SCTP_UNHANDLED_NOTIFICATION_RECEIVE,
+    SCTP_CONNECTION_CLOSE,
+    SCTP_SEND_MESSAGE,
+    GNB_MR_UPLINK_RRC,
+    GNB_MR_DOWNLINK_RRC,
+    GNB_MR_UPLINK_DATA,
+    GNB_MR_DOWNLINK_DATA,
+    NGAP_DOWNLINK_NAS_DELIVERY,
+    NGAP_UPLINK_NAS_DELIVERY,
+    NGAP_PDU_SESSION_RESOURCE_CREATE,
+    GNB_STATUS_UPDATE,
+    GTP_UE_CONTEXT_UPDATE,
+    UDP_SERVER_RECEIVE,
 };
 
 struct NtsMessage
 {
-    const int msgType;
+    const NtsMessageType msgType;
 
-    explicit NtsMessage(NtsMessageType msgType) : msgType((int)msgType)
-    {
-    }
-
-    explicit NtsMessage(int msgType) : msgType(msgType)
+    explicit NtsMessage(NtsMessageType msgType) : msgType(msgType)
     {
     }
 
@@ -74,12 +97,13 @@ class TimerBase
 // TODO: Limit queue size?
 class NtsTask
 {
+  private:
     std::deque<NtsMessage *> msgQueue{};
     TimerBase timerBase{};
     std::mutex mutex{};
     std::condition_variable cv{};
-    std::thread thread{};
     std::atomic<bool> isQuiting{};
+    std::thread thread;
 
   public:
     NtsTask() = default;
@@ -98,13 +122,13 @@ class NtsTask
 
   protected:
     // NtsTask gives the ownership of NtsMessage* to the taker (actually almost always it's its itself)
-    NtsMessage *take();
-
-    // NtsTask gives the ownership of NtsMessage* to the taker (actually almost always it's its itself)
     NtsMessage *poll();
 
     // NtsTask gives the ownership of NtsMessage* to the taker (actually almost always it's its itself)
     NtsMessage *poll(int64_t timeout);
+
+    // NtsTask gives the ownership of NtsMessage* to the taker (actually almost always it's its itself)
+    NtsMessage *take();
 
   protected:
     // Called exactly once after start() called and before onLoop() callbacks.
@@ -113,17 +137,20 @@ class NtsTask
     // Called in (almost) endless onLoop until quit.
     virtual void onLoop() = 0;
 
+    // Called exactly once after quit() called. It is guaranteed that onLoop() is never be called after onQuit()
+    virtual void onQuit() = 0;
+
   public:
-    // NTS task starts with this function.
-    // Calling start() multiple times is undefined behaviour.
+    // - NTS task starts with this function.
+    // - Calling start() multiple times is undefined behaviour.
+    // - This function is executed by the caller as blocking.
     void start();
 
-    // NTS task begins to be quited with this function.
-    // - The task is completely quited after an indeterminate time.
-    // - The task becomes unusable immediately after calling quit(). It's better to clear all references of this task
-    // from all the places before calling quit().
-    // - The task 'delete' itself in 'indeterminate' time after calling quit. Therefore all tasks must be allocated
-    // with new(). And the pointer must be considered as a dangling pointer immediately after calling quit().
-    // - Calling quit() multiple times or calling it before start() is undefined behaviour.
+    // - NTS task begins to be stopped after called this function. The task may stop after some delay. (usually
+    // WAIT_TIME_IF_NO_TIMER).
+    // - Caller always blocked until the thread completely exit. Therefore if onLoop function does not terminate, then
+    // this function never returns.
+    // - Always call this function before destroying the task.
+    // - Calling quit() before calling start() is undefined behaviour.
     void quit();
 };
