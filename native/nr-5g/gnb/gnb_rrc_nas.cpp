@@ -22,7 +22,10 @@ void GnbRrcTask::handleDownlinkNasDelivery(NwDownlinkNasDelivery *msg)
 {
     auto *pdu = asn::New<ASN_RRC_DL_DCCH_Message>();
     pdu->message.present = ASN_RRC_DL_DCCH_MessageType_PR_c1;
+    pdu->message.choice.c1 =
+        asn::New<ASN_RRC_DL_DCCH_MessageType_t::ASN_RRC_DL_DCCH_MessageType_u::ASN_RRC_DL_DCCH_MessageType__c1>();
     pdu->message.choice.c1->present = ASN_RRC_DL_DCCH_MessageType__c1_PR_dlInformationTransfer;
+    pdu->message.choice.c1->choice.dlInformationTransfer = asn::New<ASN_RRC_DLInformationTransfer>();
 
     auto &c1 = pdu->message.choice.c1->choice.dlInformationTransfer->criticalExtensions;
     c1.present = ASN_RRC_DLInformationTransfer__criticalExtensions_PR_dlInformationTransfer;

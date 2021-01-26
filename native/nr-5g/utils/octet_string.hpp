@@ -14,6 +14,7 @@
 #include <memory>
 #include <vector>
 
+// TODO: implement MemoryBlock and use it for decoders etc. instead of this.
 class OctetString
 {
   private:
@@ -48,13 +49,65 @@ class OctetString
     void appendOctet8(uint64_t v);
     void appendPadding(int length);
 
-    const uint8_t *data() const;
+  public:
+    [[nodiscard]] const uint8_t *data() const;
+    [[nodiscard]] int length() const;
     uint8_t *data();
-    int length() const;
 
+  public:
+    [[nodiscard]] octet get(int index) const;
+    [[nodiscard]] octet2 get2(int index) const;
+    [[nodiscard]] octet3 get3(int index) const;
+    [[nodiscard]] octet4 get4(int index) const;
+    [[nodiscard]] octet8 get8(int index) const;
+    [[nodiscard]] int getI(int index) const;
+    [[nodiscard]] int get2I(int index) const;
+    [[nodiscard]] int get3I(int index) const;
+    [[nodiscard]] int get4I(int index) const;
+    [[nodiscard]] uint32_t get4UI(int index) const;
+    [[nodiscard]] long get8L(int index) const;
+    [[nodiscard]] uint64_t get8UL(int index) const;
+
+  public:
+    std::string toHexString() const;
+    OctetString copy() const;
+    OctetString subCopy(int index) const;
+    OctetString subCopy(int index, int length) const;
+
+  public:
     inline OctetString &operator=(OctetString &&other) noexcept
     {
         m_data = std::move(other.m_data);
         return *this;
     }
+
+    inline bool operator==(const OctetString &other)
+    {
+        return m_data == other.m_data;
+    }
+
+    inline bool operator!=(const OctetString &other)
+    {
+        return m_data != other.m_data;
+    }
+
+  public:
+    static OctetString Empty();
+    static OctetString FromHex(const std::string &hex);
+    static OctetString FromAscii(const std::string &ascii);
+    static OctetString FromArray(const uint8_t *arr, size_t len);
+    static OctetString FromSpare(int length);
+    static OctetString FromOctet(uint8_t value);
+    static OctetString FromOctet(int value);
+    static OctetString FromOctet2(octet2 value);
+    static OctetString FromOctet2(int value);
+    static OctetString FromOctet4(octet4 value);
+    static OctetString FromOctet4(int value);
+    static OctetString FromOctet4(uint32_t value);
+    static OctetString FromOctet8(octet8 value);
+    static OctetString FromOctet8(long value);
+    static OctetString FromOctet8(uint64_t value);
+
+    static OctetString Concat(const OctetString &a, const OctetString &b);
+    static OctetString Xor(const OctetString &a, const OctetString &b);
 };

@@ -10,8 +10,11 @@
 #include <atomic>
 #include <cassert>
 #include <chrono>
+#include <random>
 #include <regex>
 #include <sstream>
+#include <thread>
+#include <unistd.h>
 
 static_assert(sizeof(char) == sizeof(uint8_t));
 static_assert(sizeof(int) == sizeof(uint32_t));
@@ -21,6 +24,8 @@ static_assert(sizeof(double) == sizeof(uint64_t));
 static_assert(sizeof(long long) == sizeof(uint64_t));
 
 static std::atomic<int> idCounter = 1;
+
+static std::random_device rd;
 
 static bool IPv6FromString(const char *szAddress, uint8_t *address)
 {
@@ -166,7 +171,7 @@ OctetString utils::IpToOctetString(const std::string &address)
         std::stringstream ss(address);
         ss >> bytes[0] >> dot >> bytes[1] >> dot >> bytes[2] >> dot >> bytes[3] >> dot;
 
-        std::vector<uint8_t> data{4};
+        std::vector<uint8_t> data(4);
         data[0] = bytes[0];
         data[1] = bytes[1];
         data[2] = bytes[2];
@@ -183,4 +188,69 @@ OctetString utils::IpToOctetString(const std::string &address)
     }
     else
         return {};
+}
+
+std::string utils::VectorToHexString(const std::vector<uint8_t> &hex)
+{
+    std::string str(hex.size() * 2, '0');
+    for (size_t i = 0; i < hex.size(); i++)
+    {
+        uint8_t octet = hex[i];
+        int big = (octet >> 4) & 0xF;
+        int little = octet & 0xF;
+
+        char bigChar = static_cast<char>(big < 10 ? '0' + big : 'A' + (big - 10));
+        char littleChar = static_cast<char>(little < 10 ? '0' + little : 'A' + (little - 10));
+
+        str[i * 2] = bigChar;
+        str[i * 2 + 1] = littleChar;
+    }
+    return str;
+}
+
+int utils::ParseInt(const std::string &str)
+{
+    return ParseInt(str.c_str());
+}
+
+int utils::ParseInt(const char *str)
+{
+    std::stringstream ss("");
+    ss << str;
+    int i;
+    ss >> i;
+    return i;
+}
+
+uint64_t utils::Random64()
+{
+    while (true)
+    {
+        std::mt19937_64 eng(rd());
+        std::uniform_int_distribution<uint64_t> distribution;
+        uint64_t r = distribution(eng);
+        if (r != 0)
+            return r;
+    }
+}
+
+void utils::Sleep(int ms)
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+}
+
+std::string utils::OctetStringToIp(const OctetString &address)
+{
+    if (address.length() == 4)
+    {
+        char buffer[20] = {0};
+        sprintf(buffer, "%d.%d.%d.%d", address.getI(0), address.getI(1), address.getI(2), address.getI(3));
+        return std::string{buffer};
+    }
+    return address.toHexString();
+}
+
+bool utils::IsRoot()
+{
+    return geteuid() == 0;
 }

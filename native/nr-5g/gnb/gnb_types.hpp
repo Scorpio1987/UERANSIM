@@ -221,7 +221,7 @@ struct GnbConfig
 {
     int64_t nci;     // 36-bit
     int gnbIdLength; // 22..32 bit
-    std::string name;
+    std::string name; // TODO: avoid "/" etc. in the name since it is directory. (same for the UE)
     Plmn plmn;
     int tac;
     std::vector<SliceSupport> nssais;
@@ -250,6 +250,12 @@ struct TaskBase
     NtsTask *ngapTask;
     NtsTask *rrcTask;
     NtsTask *sctpTask;
+};
+
+struct MrUeContext
+{
+    int ueId;
+    std::string name;
 };
 
 } // namespace nr::gnb

@@ -6,8 +6,8 @@
 // and subject to the terms and conditions defined in LICENSE file.
 //
 
-#include "gnb_ngap_task.hpp"
 #include "gnb_app_task.hpp"
+#include "gnb_ngap_task.hpp"
 #include "gnb_ngap_utils.hpp"
 
 #include <ASN_NGAP_AMFName.h>
@@ -28,7 +28,7 @@ namespace nr::gnb
 
 void NgapTask::handleAssociationSetup(NwSctpAssociationSetup *msg)
 {
-    logger->debug("SCTP association setup received (association id: %d)", msg->associationId);
+    logger->debug("SCTP association setup received ascId[%d]", msg->associationId);
 
     auto *amf = findAmfContext(msg->clientId);
     if (amf != nullptr)
@@ -43,6 +43,8 @@ void NgapTask::handleAssociationSetup(NwSctpAssociationSetup *msg)
             auto *update = new NwGnbStatusUpdate(NwGnbStatusUpdate::INITIAL_SCTP_ESTABLISHED);
             update->isInitialSctpEstablished = true;
             base->appTask->push(update);
+
+            base->mrTask->push(new NwGnbN1Ready());
         }
 
         sendNgSetupRequest(amf->ctxId);
@@ -68,7 +70,7 @@ void NgapTask::sendNgSetupRequest(int amfId)
     auto *globalGnbId = asn::New<ASN_NGAP_GlobalGNB_ID>();
     globalGnbId->gNB_ID.present = ASN_NGAP_GNB_ID_PR_gNB_ID;
     asn::SetBitString(globalGnbId->gNB_ID.choice.gNB_ID, octet4{base->config->getGnbId()});
-    asn::SetOctetString(globalGnbId->pLMNIdentity, ngap_utils::PlmnToOctet3(base->config->plmn));
+    asn::SetOctetString3(globalGnbId->pLMNIdentity, ngap_utils::PlmnToOctet3(base->config->plmn));
 
     auto *ieGlobalGnbId = asn::New<ASN_NGAP_NGSetupRequestIEs>();
     ieGlobalGnbId->id = ASN_NGAP_ProtocolIE_ID_id_GlobalRANNodeID;
@@ -84,21 +86,21 @@ void NgapTask::sendNgSetupRequest(int amfId)
     asn::SetPrintableString(ieRanNodeName->value.choice.RANNodeName, base->config->name);
 
     auto *broadcastPlmn = asn::New<ASN_NGAP_BroadcastPLMNItem>();
-    asn::SetOctetString(broadcastPlmn->pLMNIdentity, ngap_utils::PlmnToOctet3(base->config->plmn));
+    asn::SetOctetString3(broadcastPlmn->pLMNIdentity, ngap_utils::PlmnToOctet3(base->config->plmn));
     for (auto &nssai : base->config->nssais)
     {
         auto *item = asn::New<ASN_NGAP_SliceSupportItem>();
-        asn::SetOctetString(item->s_NSSAI.sST, static_cast<uint8_t>(nssai.sst));
+        asn::SetOctetString1(item->s_NSSAI.sST, static_cast<uint8_t>(nssai.sst));
         if (nssai.sd.has_value())
         {
             item->s_NSSAI.sD = asn::New<ASN_NGAP_SD_t>();
-            asn::SetOctetString(*item->s_NSSAI.sD, octet3{nssai.sd.value()});
+            asn::SetOctetString3(*item->s_NSSAI.sD, octet3{nssai.sd.value()});
         }
         asn::SequenceAdd(broadcastPlmn->tAISliceSupportList, item);
     }
 
     auto *supportedTa = asn::New<ASN_NGAP_SupportedTAItem>();
-    asn::SetOctetString(supportedTa->tAC, octet3{base->config->tac});
+    asn::SetOctetString3(supportedTa->tAC, octet3{base->config->tac});
     asn::SequenceAdd(supportedTa->broadcastPLMNList, broadcastPlmn);
 
     auto *ieSupportedTaList = asn::New<ASN_NGAP_NGSetupRequestIEs>();
@@ -164,6 +166,7 @@ void NgapTask::receiveNgSetupResponse(int amfId, ASN_NGAP_NGSetupResponse *msg)
         });
     }
 
+    amf->state = EAmfState::CONNECTED;
     logger->info("NG Setup procedure is successful");
 }
 

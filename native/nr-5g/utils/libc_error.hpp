@@ -13,5 +13,6 @@
 class LibError : public std::runtime_error
 {
   public:
-    LibError(const std::string& what, int err);
+    explicit LibError(const std::string &what);
+    LibError(const std::string &what, int err);
 };

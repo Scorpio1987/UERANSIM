@@ -32,6 +32,11 @@ void GnbRrcTask::onStart()
 {
 }
 
+void GnbRrcTask::onQuit()
+{
+    // todo
+}
+
 void GnbRrcTask::onLoop()
 {
     NtsMessage *msg = take();
@@ -51,14 +56,6 @@ void GnbRrcTask::onLoop()
         delete msg;
         break;
     }
-}
-
-void GnbRrcTask::onQuit()
-{
-    logger->debug("RRC task is quiting");
-    logger->flush();
-
-    // todo
 }
 
 void GnbRrcTask::handleUplinkRrc(NwGnbUplinkRrc *msg)

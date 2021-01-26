@@ -331,6 +331,7 @@ void *NewDescFromMessageType(NgapMessageType type, void *&pOutDescription)
             return &desc->value.choice.UEContextModificationFailure;
         default:
             assert(false);
+            break;
         }
     }
 
@@ -449,7 +450,7 @@ int GetProcedureCode(NgapMessageType messageType)
     case NgapMessageType::UEContextReleaseCommand:
     case NgapMessageType::UEContextReleaseComplete:
     case NgapMessageType::UEContextReleaseRequest:
-        return 42;
+        return 41;
     case NgapMessageType::UERadioCapabilityCheckRequest:
     case NgapMessageType::UERadioCapabilityCheckResponse:
     case NgapMessageType::UERadioCapabilityInfoIndication:
@@ -473,6 +474,7 @@ int GetProcedureCode(NgapMessageType messageType)
         return 52;
     default:
         assert(false);
+        break;
     }
 }
 
@@ -730,9 +732,9 @@ int GetProcedurePresent(NgapMessageType messageType)
         return ASN_NGAP_UnsuccessfulOutcome__value_PR_RANConfigurationUpdateFailure;
     case NgapMessageType::UEContextModificationFailure:
         return ASN_NGAP_UnsuccessfulOutcome__value_PR_UEContextModificationFailure;
-
     default:
         assert(false);
+        break;
     }
 }
 
@@ -824,7 +826,6 @@ int GetPduDescription(NgapMessageType messageType)
     case NgapMessageType::RANConfigurationUpdateFailure:
     case NgapMessageType::UEContextModificationFailure:
         return 2;
-
     default:
         assert(false);
     }

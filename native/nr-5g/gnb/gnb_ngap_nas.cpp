@@ -36,6 +36,12 @@ void NgapTask::handleInitialNasTransport(int ueId, const OctetString &nasPdu)
     if (amfCtx == nullptr)
         return;
 
+    if (amfCtx->state != EAmfState::CONNECTED)
+    {
+        logger->err("Initial NAS transport failure. AMF is not in connected state.");
+        return;
+    }
+
     amfCtx->nextStream = (amfCtx->nextStream + 1) % amfCtx->association.outStreams;
     if ((amfCtx->nextStream == 0) && (amfCtx->association.outStreams > 1))
         amfCtx->nextStream += 1;
@@ -65,14 +71,11 @@ void NgapTask::handleInitialNasTransport(int ueId, const OctetString &nasPdu)
 
 void NgapTask::deliverDownlinkNas(int ueId, OctetString &&nasPdu)
 {
-    logger->debug("Delivering downlink NAS PDU with length %d to UE with ID %d", nasPdu.length(), ueId);
     base->rrcTask->push(new NwDownlinkNasDelivery(ueId, std::move(nasPdu)));
 }
 
 void NgapTask::deliverUplinkNas(NwUplinkNasDelivery *msg)
 {
-    logger->debug("Delivering uplink NAS PDU with length %d to UE with ID %d", msg->nasPdu.length(), msg->ueId);
-
     if (ueContexts.count(msg->ueId))
         handleUplinkNasTransport(msg->ueId, msg->nasPdu);
     else
@@ -82,8 +85,6 @@ void NgapTask::deliverUplinkNas(NwUplinkNasDelivery *msg)
 
 void NgapTask::handleUplinkNasTransport(int ueId, const OctetString &nasPdu)
 {
-    logger->debug("Uplink NAS transport received from UE with ID %d", ueId);
-
     auto *ieNasPdu = asn::New<ASN_NGAP_UplinkNASTransport_IEs>();
     ieNasPdu->id = ASN_NGAP_ProtocolIE_ID_id_NAS_PDU;
     ieNasPdu->criticality = ASN_NGAP_Criticality_reject;
@@ -96,7 +97,7 @@ void NgapTask::handleUplinkNasTransport(int ueId, const OctetString &nasPdu)
 
 void NgapTask::sendNasNonDeliveryIndication(int ueId, const OctetString &nasPdu, NgapCause cause)
 {
-    logger->debug("Sending non-delivery indication for UE with ID %d", ueId);
+    logger->debug("Sending non-delivery indication for UE[%d]", ueId);
 
     auto *ieNasPdu = asn::New<ASN_NGAP_NASNonDeliveryIndication_IEs>();
     ieNasPdu->id = ASN_NGAP_ProtocolIE_ID_id_NAS_PDU;
@@ -116,8 +117,6 @@ void NgapTask::sendNasNonDeliveryIndication(int ueId, const OctetString &nasPdu,
 
 void NgapTask::receiveDownlinkNasTransport(int amfId, ASN_NGAP_DownlinkNASTransport *msg)
 {
-    logger->debug("Downlink NAS transport received");
-
     auto *ue = findUeByNgapIdPair(amfId, ngap_utils::FindNgapIdPair(msg));
     if (ue == nullptr)
         return;

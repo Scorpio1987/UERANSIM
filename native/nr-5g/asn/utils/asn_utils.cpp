@@ -19,7 +19,7 @@ void SetPrintableString(PrintableString_t &target, const std::string &value)
         throw std::runtime_error("OCTET_STRING_fromBuf failed");
 }
 
-void SetOctetString(OCTET_STRING_t &target, uint8_t value)
+void SetOctetString1(OCTET_STRING_t &target, uint8_t value)
 {
     uint8_t buffer[1] = {value};
 
@@ -27,7 +27,7 @@ void SetOctetString(OCTET_STRING_t &target, uint8_t value)
         throw std::runtime_error("OCTET_STRING_fromBuf failed");
 }
 
-void SetOctetString(OCTET_STRING_t &target, octet2 value)
+void SetOctetString2(OCTET_STRING_t &target, octet2 value)
 {
     uint8_t buffer[2] = {value[0], value[1]};
 
@@ -35,7 +35,7 @@ void SetOctetString(OCTET_STRING_t &target, octet2 value)
         throw std::runtime_error("OCTET_STRING_fromBuf failed");
 }
 
-void SetOctetString(OCTET_STRING_t &target, octet3 value)
+void SetOctetString3(OCTET_STRING_t &target, octet3 value)
 {
     uint8_t buffer[3] = {value[0], value[1], value[2]};
 
@@ -43,7 +43,7 @@ void SetOctetString(OCTET_STRING_t &target, octet3 value)
         throw std::runtime_error("OCTET_STRING_fromBuf failed");
 }
 
-void SetOctetString(OCTET_STRING_t &target, octet4 value)
+void SetOctetString4(OCTET_STRING_t &target, octet4 value)
 {
     uint8_t buffer[4] = {value[0], value[1], value[2], value[3]};
 
@@ -83,8 +83,7 @@ void SetBitString(BIT_STRING_t &target, const OctetString &value)
 
 std::string GetPrintableString(const PrintableString_t &source)
 {
-    std::string r;
-    r.reserve(source.size);
+    std::string r(source.size, '0');
     for (size_t i = 0; i < source.size; i++)
         r += (char)source.buf[i];
     return r;
@@ -112,16 +111,14 @@ octet4 GetOctet4(const OCTET_STRING_t &source)
 
 OctetString GetOctetString(const OCTET_STRING_t &source)
 {
-    std::vector<uint8_t> v;
-    v.reserve(source.size);
+    std::vector<uint8_t> v(source.size);
     std::memcpy(v.data(), source.buf, source.size);
     return OctetString{std::move(v)};
 }
 
 OctetString GetOctetString(const BIT_STRING_t &source)
 {
-    std::vector<uint8_t> v;
-    v.reserve(source.size);
+    std::vector<uint8_t> v(source.size);
     std::memcpy(v.data(), source.buf, source.size);
     return OctetString{std::move(v)};
 }

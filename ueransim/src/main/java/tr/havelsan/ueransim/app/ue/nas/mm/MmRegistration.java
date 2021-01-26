@@ -78,6 +78,8 @@ public class MmRegistration {
     }
 
     public static void receiveRegistrationAccept(NasContext ctx, RegistrationAccept message) {
+        // todo firstly check whether the state is MM_REGISTERED_INITIATED
+
         boolean sendCompleteMes = false;
 
         ctx.mmCtx.taiList = message.taiList;
@@ -117,12 +119,10 @@ public class MmRegistration {
                 Log.success(Tag.PROC, "Registration is successful");
             }
         }
-
-
     }
 
     public static void receiveRegistrationReject(NasContext ctx, RegistrationReject message) {
-        var cause = EMmCause.DNN_NOT_SUPPORTED_OR_NOT_SUBSCRIBED;
+        var cause = message.mmCause.value;
         var regType = ctx.mmCtx.registrationRequest.registrationType.registrationType;
 
         Log.error(Tag.PROC, "Registration failed: %s", cause.name());
