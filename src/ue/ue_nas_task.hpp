@@ -60,6 +60,8 @@ class NasTask : public NtsTask
     void performMmCycle();
     void switchMmState(EMmState state, EMmSubState subState);
     void switchRmState(ERmState state);
+    void onSwitchMmState(EMmState oldState, EMmState newState, EMmSubState oldSubState, EMmSubState newSubSate);
+    void onSwitchRmState(ERmState oldState, ERmState newState);
     void receivePlmnSearchResponse(const NwPlmnSearchResponse &msg);
     void receiveMmStatus(const nas::FiveGMmStatus &msg);
     void receiveMmCause(const nas::IE5gMmCause &msg);

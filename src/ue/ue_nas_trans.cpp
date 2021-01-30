@@ -27,6 +27,15 @@ void NasTask::receiveNasMessage(const nas::NasMessage &msg)
 
     if (mm.sht == nas::ESecurityHeaderType::NOT_PROTECTED)
     {
+        //  If any NAS signalling message is received as not integrity protected even though the secure exchange of NAS
+        //  messages has been established by the network, then the NAS shall discard this message
+        if (currentNsCtx.has_value())
+        {
+            logger->err("Not integrity protected NAS message received after security establishment. Ignoring received "
+                        "NAS message");
+            return;
+        }
+
         receiveMmMessage((const nas::PlainMmMessage &)mm);
         return;
     }

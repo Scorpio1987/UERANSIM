@@ -74,6 +74,8 @@ void NasTask::switchMmState(EMmState state, EMmSubState subState)
     mmCtx.mmState = state;
     mmCtx.mmSubState = subState;
 
+    onSwitchMmState(oldState, mmCtx.mmState, oldSubState, mmCtx.mmSubState);
+
     if (base->nodeListener)
     {
         base->nodeListener->onSwitch(app::NodeType::UE, base->config->getNodeName(), app::StateType::MM,
@@ -95,8 +97,9 @@ void NasTask::switchMmState(EMmState state, EMmSubState subState)
 void NasTask::switchRmState(ERmState state)
 {
     ERmState oldState = mmCtx.rmState;
-
     mmCtx.rmState = state;
+
+    onSwitchRmState(oldState, mmCtx.rmState);
 
     if (base->nodeListener)
     {
@@ -111,6 +114,27 @@ void NasTask::switchRmState(ERmState state)
     logger->info("UE switches to state: %s", RmStateName(state));
 
     triggerMmCycle();
+}
+
+void NasTask::onSwitchMmState(EMmState oldState, EMmState newState, EMmSubState oldSubState, EMmSubState newSubSate)
+{
+    // The UE shall mark the 5G NAS security context on the USIM or in the non-volatile memory as invalid when the UE
+    // initiates an initial registration procedure as described in subclause 5.5.1.2 or when the UE leaves state
+    // 5GMM-DEREGISTERED for any other state except 5GMM-NULL.
+    if (oldState == EMmState::MM_DEREGISTERED && newState != EMmState::MM_DEREGISTERED && newState != EMmState::MM_NULL)
+    {
+        if (currentNsCtx.has_value() || nonCurrentNsCtx.has_value())
+        {
+            logger->debug("Deleting NAS security context");
+
+            currentNsCtx = {};
+            nonCurrentNsCtx = {};
+        }
+    }
+}
+
+void NasTask::onSwitchRmState(ERmState oldState, ERmState newState)
+{
 }
 
 void NasTask::receivePlmnSearchResponse(const NwPlmnSearchResponse &msg)
@@ -135,6 +159,14 @@ void NasTask::receiveMmCause(const nas::IE5gMmCause &msg)
 
 void NasTask::sendRegistration(nas::ERegistrationType registrationType, nas::EFollowOnRequest followOn)
 {
+    // The UE shall mark the 5G NAS security context on the USIM or in the non-volatile memory as invalid when the UE
+    // initiates an initial registration procedure
+    if (registrationType == nas::ERegistrationType::INITIAL_REGISTRATION)
+    {
+        currentNsCtx = {};
+        nonCurrentNsCtx = {};
+    }
+
     switchMmState(EMmState::MM_REGISTERED_INITIATED, EMmSubState::MM_REGISTERED_INITIATED_NA);
 
     nas::IENasKeySetIdentifier ngKsi;
