@@ -138,7 +138,7 @@ enum class ERmState
 
 enum class ECmState
 {
-    CM_IDLE,
+    CM_IDLE, // Same with 5GMM-IDLE in 24.501
     CM_CONNECTED
 };
 
